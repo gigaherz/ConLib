@@ -267,6 +267,73 @@ static void clHandleWindowResize(clHandle handle, int& width, int& height)
 
 }
 
+static void clProcessResize(clHandle handle, RECT* r, int wParam)
+{
+	//clUpdateScrollBars(handle);
+
+	RECT wr,cr;
+	if(GetWindowRect(handle->windowHandle,&wr)==0) return;
+	if(GetClientRect(handle->windowHandle,&cr)==0) return;
+
+	int xborder = (wr.right - wr.left) - (cr.right - cr.left);
+	int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+
+	int yhscroll = GetSystemMetrics(SM_CYHSCROLL);
+
+	int cwidth = (r->right - r->left) - xborder;
+	int cheight = (r->bottom - r->top) - yborder;
+
+	int width = cwidth + (handle->characterWidth / 2);
+	int height = cheight + (handle->characterHeight / 2);
+
+	bool hadHS = (handle->windowWidth == handle->bufferWidth);
+	//bool hadVS = (handle->windowHeight == handle->windowHeight);
+
+	clHandleWindowResize(handle, width, height);
+	clUpdateScrollBars(handle);
+
+	bool newHS = (handle->windowWidth == handle->bufferWidth);
+	//bool newVS = (handle->windowHeight == handle->windowHeight);
+
+	if(hadHS && !newHS) // we don't need the HS anymore
+	{
+		height += yhscroll;
+		yborder -= yhscroll; // compensate border differences
+
+		clHandleWindowResize(handle, width, height);
+	}
+
+	if(!hadHS && newHS) // added a scrollbar
+	{
+		height -= handle->characterHeight * (yhscroll / handle->characterHeight); 
+		yborder += yhscroll; // compensate border differences
+
+		clHandleWindowResize(handle, width, height);
+	}
+
+	width += xborder;
+	height += yborder;
+
+	if( (wParam == WMSZ_LEFT) || (wParam == WMSZ_TOPLEFT) || (wParam == WMSZ_BOTTOMLEFT)  ) // left
+	{
+		r->left = r->right - width;
+	}
+	else
+	{
+		r->right = r->left + width;
+	}
+
+	if( (wParam == WMSZ_TOP) || (wParam == WMSZ_TOPLEFT) || (wParam == WMSZ_TOPRIGHT)  ) // top
+	{
+		r->top = r->bottom - height;
+	}	
+	else
+	{
+		r->bottom = r->top + height;
+	}
+
+}
+
 static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 								WPARAM wParam, LPARAM lParam)
 {
@@ -280,20 +347,24 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		{
 			MINMAXINFO *mmi=(MINMAXINFO*)lParam;
 
+			// make sure scrollbar state is updated
+			clUpdateScrollBars(handle);
+
 			RECT wr,cr;
 			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
 			if(GetClientRect(handle->windowHandle,&cr)==0) break;
 
-			int xborder = (wr.right - wr.left) - (cr.right - cr.left); // + GetSystemMetrics(SM_CXVSCROLL);
+			int xborder = (wr.right - wr.left) - (cr.right - cr.left);
 			int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
 
 			int maxx = xborder + (handle->bufferWidth * handle->characterWidth);
 			int maxy = yborder + (handle->bufferHeight * handle->characterHeight);
 
-			if(maxx < mmi->ptMaxSize.x) mmi->ptMaxSize.x = maxx;
-			
-			if(maxy < mmi->ptMaxSize.y) mmi->ptMaxSize.y = maxy;
+			int cxm = handle->characterWidth * (GetSystemMetrics(SM_CXMAXIMIZED)/handle->characterWidth);
+			int cym = handle->characterHeight * (GetSystemMetrics(SM_CYMAXIMIZED)/handle->characterHeight);
 
+			mmi->ptMaxSize.x = min(cxm,maxx);
+			mmi->ptMaxSize.y = min(cym,maxy);
 		}
 		break;
 	case WM_SIZING:
@@ -307,46 +378,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		{
 			RECT* r = (RECT*)lParam;
 
-			clUpdateScrollBars(handle);
-
-			RECT wr,cr;
-			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
-			if(GetClientRect(handle->windowHandle,&cr)==0) break;
-
-			int xborder = (wr.right - wr.left) - (cr.right - cr.left); // + GetSystemMetrics(SM_CXVSCROLL);
-			int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
-
-			int owidth = (r->right - r->left) - xborder;
-			int oheight = (r->bottom - r->top) - yborder;
-
-			int width = owidth;
-			int height = oheight;
-
-			clHandleWindowResize(handle, width,height);
-
-			if(width != owidth)
-			{
-				if( (wParam == WMSZ_LEFT) || (wParam == WMSZ_TOPLEFT) || (wParam == WMSZ_BOTTOMLEFT)  ) // left
-				{
-					r->left = r->right - (width + xborder);
-				}
-				else if( (wParam == WMSZ_RIGHT) || (wParam == WMSZ_TOPRIGHT) || (wParam == WMSZ_BOTTOMRIGHT)  ) // right
-				{
-					r->right = r->left + (width + xborder);
-				}
-			}
-
-			if(height != oheight)
-			{
-				if( (wParam == WMSZ_TOP) || (wParam == WMSZ_TOPLEFT) || (wParam == WMSZ_TOPRIGHT)  ) // top
-				{
-					r->top = r->bottom - (height + yborder);
-				}	
-				else if( (wParam == WMSZ_BOTTOM) || (wParam == WMSZ_BOTTOMLEFT) || (wParam == WMSZ_BOTTOMRIGHT)  ) // bottom
-				{
-					r->bottom = r->top + (height + yborder);
-				}
-			}
+			clProcessResize(handle, r, wParam);
 		}
 
 		break;
@@ -355,27 +387,19 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 
 		if( (wParam != SIZE_MINIMIZED) && (handle->lastWindowState != wParam))
 		{
+			RECT r;
+
+			if(GetWindowRect(hwnd,&r)==0) break;
+
+			clProcessResize(handle, &r, 0);
+
 			clUpdateScrollBars(handle);
 
-			RECT wr,cr;
-			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
-			if(GetClientRect(handle->windowHandle,&cr)==0) break;
-
-			int xborder = (wr.right - wr.left) - (cr.right - cr.left); // + GetSystemMetrics(SM_CXVSCROLL);
-			int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
-
-			int owidth = LOWORD(lParam) - xborder;
-			int oheight = HIWORD(lParam)  - yborder;
-
-			int width = owidth;
-			int height = oheight;
-
-			clHandleWindowResize(handle, width,height);
+			InvalidateRect(hwnd,NULL,TRUE);
+			UpdateWindow(hwnd);
 		}
 
 		handle->lastWindowState = (int)wParam;
-			
-		clUpdateScrollBars(handle);
 		break;
 
 	case WM_HSCROLL:
@@ -581,7 +605,7 @@ static void clCreateWindow(clHandle handle)
 		0, 0, 0, 0);
 
 	handle->windowFont = CreateFont(
-		16,0,
+		14,0,
 		0,0,
 		FW_DONTCARE,
 		FALSE,FALSE,FALSE,

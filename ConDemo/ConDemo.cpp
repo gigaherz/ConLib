@@ -24,7 +24,7 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	clHandle handle = clCreateConsole(80, 32, 80, 10);
+	clHandle handle = clCreateConsole(80, 320, 80, 10);
 
 	clSetWindowTitle(handle, L"ConLib Demo Console");
 
