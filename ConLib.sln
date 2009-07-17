@@ -11,15 +11,20 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
+		Release StaticCRT|Win32 = Release StaticCRT|Win32
 		Release|Win32 = Release|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{735537F0-329F-49C7-9121-AD724B89FAC5}.Debug|Win32.ActiveCfg = Debug|Win32
 		{735537F0-329F-49C7-9121-AD724B89FAC5}.Debug|Win32.Build.0 = Debug|Win32
+		{735537F0-329F-49C7-9121-AD724B89FAC5}.Release StaticCRT|Win32.ActiveCfg = Release StaticCRT|Win32
+		{735537F0-329F-49C7-9121-AD724B89FAC5}.Release StaticCRT|Win32.Build.0 = Release StaticCRT|Win32
 		{735537F0-329F-49C7-9121-AD724B89FAC5}.Release|Win32.ActiveCfg = Release|Win32
 		{735537F0-329F-49C7-9121-AD724B89FAC5}.Release|Win32.Build.0 = Release|Win32
 		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Debug|Win32.ActiveCfg = Debug|Win32
 		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Debug|Win32.Build.0 = Debug|Win32
+		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Release StaticCRT|Win32.ActiveCfg = Release StaticCRT|Win32
+		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Release StaticCRT|Win32.Build.0 = Release StaticCRT|Win32
 		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Release|Win32.ActiveCfg = Release|Win32
 		{8C680DFA-23D6-423C-9290-7649BC5DA99D}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection

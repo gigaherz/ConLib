@@ -24,15 +24,15 @@
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	clHandle handle = clCreateConsole(80, 1000, 80, 50);
+	clHandle handle = clCreateConsole(80, 32, 80, 10);
 
 	clSetWindowTitle(handle, L"ConLib Demo Console");
 
-	clSetControlParameter(handle, CL_CURRENT_ATTRIBUTE, CL_MAKE_ATTRIBUTE(0,31,0,0,4,31,31));
-	clPrintf(handle, "Hello console!\r\n");
-	clSetControlParameter(handle, CL_CURRENT_ATTRIBUTE, CL_MAKE_ATTRIBUTE(0,4,31,4,0,4,0));
-
-	clPrintf(handle, "\r\n(Please close the window to terminate this application)\r\n");
+	for(int i=0;i<32;i++)
+	{
+		clSetControlParameter(handle, CL_CURRENT_ATTRIBUTE, CL_MAKE_ATTRIBUTE(0,i,31-i,0,31-i,0,i));
+		clPrintf(handle, "\r\nHello console!");
+	}
 
 	while(clPrintf(handle, "\r")>0)
 	{

@@ -53,7 +53,13 @@ typedef struct conLibPrivateData
 	int characterWidth;
 	int characterHeight;
 
-	int scrollOffset;
+	int scrollOffsetY;
+	int scrollOffsetX;
+
+	int lastWindowState;
+
+	bool scrollBarVisibleX;
+	bool scrollBarVisibleY;
 
 	HFONT windowFont;
 

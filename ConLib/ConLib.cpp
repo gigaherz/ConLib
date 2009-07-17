@@ -33,17 +33,65 @@ static void clRepaintText(clHandle handle, HDC hdc, int x, int y, wchar_t* text,
 	TextOut(hdc,x * handle->characterWidth, y*handle->characterHeight, text, nchars);
 }
 
-/*static void clUpdateLine(clHandle handle)
+static void clUpdateScrollBars(clHandle handle)
 {
-	RECT r = {
-		0,
-		(handle->cursorY-handle->scrollOffset)*handle->characterHeight,
-		handle->windowWidth * handle->characterWidth,
-		(handle->cursorY+1-handle->scrollOffset)*handle->characterHeight
-	};
+	HWND hwnd = handle->windowHandle;
 
-	InvalidateRect(handle->windowHandle,&r,FALSE);
-}*/
+	SCROLLINFO si;
+
+	if(handle->windowHeight>=handle->bufferHeight)
+	{
+		handle->scrollOffsetY=0;
+		//ShowScrollBar(hwnd,SB_VERT,FALSE);
+		si.cbSize = sizeof(SCROLLINFO);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_DISABLENOSCROLL;
+		si.nMin = 0;
+		si.nMax = 0;
+		si.nPage = 1;
+		si.nPos = 0;
+		si.nTrackPos=0;
+		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
+
+	}
+	else
+	{
+		if(handle->scrollOffsetY>=(handle->bufferHeight-handle->windowHeight))
+			handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight-1;
+
+		//ShowScrollBar(hwnd,SB_VERT,TRUE);
+
+		si.cbSize = sizeof(SCROLLINFO);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
+		si.nMin = 0;
+		si.nMax = handle->bufferHeight-1;
+		si.nPage = handle->windowHeight;
+		si.nPos = handle->scrollOffsetY;
+		si.nTrackPos=0;
+		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
+		EnableScrollBar(hwnd, SB_VERT, ESB_ENABLE_BOTH);
+	}
+
+	if(handle->windowWidth>=handle->bufferWidth)
+	{
+		handle->scrollOffsetX=0;
+		ShowScrollBar(hwnd,SB_HORZ,FALSE);
+	}
+	else
+	{
+		if(handle->scrollOffsetX>=(handle->bufferWidth-handle->windowWidth))
+			handle->scrollOffsetX = handle->bufferWidth-handle->windowWidth-1;
+
+		ShowScrollBar(hwnd,SB_HORZ,TRUE);
+
+		si.cbSize = sizeof(SCROLLINFO);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
+		si.nMin = 0;
+		si.nMax = handle->bufferWidth-1;
+		si.nPage = handle->windowWidth;
+		si.nPos = handle->scrollOffsetX;
+		SetScrollInfo(hwnd,SB_HORZ, &si, TRUE);
+	}
+}
 
 static void clScrollBufferDown(clHandle handle)
 {
@@ -72,40 +120,44 @@ static void clMoveDown(clHandle handle)
 		handle->cursorY--;
 		clScrollBufferDown(handle);
 
-		handle->scrollOffset = handle->bufferHeight-handle->windowHeight;
-		SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffset,TRUE);
+		handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight;
+		SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
 		
 		ScrollWindowEx(handle->windowHandle,0,-handle->characterHeight,NULL,NULL,NULL,NULL,SW_INVALIDATE);
 	}
 
-	if(handle->cursorY < handle->scrollOffset)
+	int YScrolled = handle->cursorY - handle->scrollOffsetY;
+
+	if(YScrolled < 0)
 	{
-		int scrollDifference = handle->scrollOffset-handle->cursorY;
+		int scrollDifference = YScrolled;
 
 		if((-scrollDifference)>=handle->windowHeight)
 			InvalidateRect(handle->windowHandle,NULL,FALSE);
 		else
 			ScrollWindowEx(handle->windowHandle,0,handle->characterHeight*scrollDifference,NULL,NULL,NULL,NULL,SW_INVALIDATE);
 
-		handle->scrollOffset = handle->cursorY;
-		SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffset,TRUE);
+		handle->scrollOffsetY = handle->cursorY;
+		//SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
+		clUpdateScrollBars(handle);
 	}
 
-	if(handle->cursorY >= (handle->scrollOffset+handle->windowHeight))
+	if(YScrolled >= handle->windowHeight)
 	{
-		int scrollDifference = (handle->cursorY - (handle->scrollOffset+handle->windowHeight-1));
+		int scrollDifference = YScrolled - handle->windowHeight + 1;
 
 		if(scrollDifference>=handle->windowHeight)
 			InvalidateRect(handle->windowHandle,NULL,FALSE);
 		else
 			ScrollWindowEx(handle->windowHandle,0,-handle->characterHeight*scrollDifference,NULL,NULL,NULL,NULL,SW_INVALIDATE);
 
-		handle->scrollOffset = handle->cursorY - handle->windowHeight + 1;
-		SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffset,TRUE);
+		handle->scrollOffsetY = handle->cursorY - handle->windowHeight + 1;
+		//SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
+		clUpdateScrollBars(handle);
 	}
 
-	if(handle->scrollOffset<0)
-		handle->scrollOffset=0;
+	if(handle->scrollOffsetY<0)
+		handle->scrollOffsetY=0;
 }
 
 static void clMoveNext(clHandle handle)
@@ -146,9 +198,9 @@ static void clPutChar(clHandle handle, wchar_t chr)
 
 		RECT r = {
 			handle->cursorX * handle->characterWidth,
-			(handle->cursorY-handle->scrollOffset)*handle->characterHeight,
+			(handle->cursorY-handle->scrollOffsetY)*handle->characterHeight,
 			(handle->cursorX+1) * handle->characterWidth,
-			(handle->cursorY+1-handle->scrollOffset)*handle->characterHeight
+			(handle->cursorY+1-handle->scrollOffsetY)*handle->characterHeight
 		};
 
 		InvalidateRect(handle->windowHandle,&r,FALSE);
@@ -224,11 +276,38 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 	case WM_COPYDATA:
 		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
 
+	case WM_GETMINMAXINFO:
+		{
+			MINMAXINFO *mmi=(MINMAXINFO*)lParam;
+
+			RECT wr,cr;
+			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
+			if(GetClientRect(handle->windowHandle,&cr)==0) break;
+
+			int xborder = (wr.right - wr.left) - (cr.right - cr.left); // + GetSystemMetrics(SM_CXVSCROLL);
+			int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+
+			int maxx = xborder + (handle->bufferWidth * handle->characterWidth);
+			int maxy = yborder + (handle->bufferHeight * handle->characterHeight);
+
+			if(maxx < mmi->ptMaxSize.x) mmi->ptMaxSize.x = maxx;
+			
+			if(maxy < mmi->ptMaxSize.y) mmi->ptMaxSize.y = maxy;
+
+		}
+		break;
 	case WM_SIZING:
+
+		if(handle->lastWindowState != wParam)
+			InvalidateRect(hwnd,NULL,TRUE);
+
+		handle->lastWindowState = (int)wParam;
 
 		if(wParam != SIZE_MINIMIZED)
 		{
 			RECT* r = (RECT*)lParam;
+
+			clUpdateScrollBars(handle);
 
 			RECT wr,cr;
 			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
@@ -244,8 +323,6 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 			int height = oheight;
 
 			clHandleWindowResize(handle, width,height);
-
-			lParam = (height << 16) | width;
 
 			if(width != owidth)
 			{
@@ -273,14 +350,62 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		}
 
 		break;
-	case WM_VSCROLL:
+
+	case WM_SIZE:
+
+		if( (wParam != SIZE_MINIMIZED) && (handle->lastWindowState != wParam))
+		{
+			clUpdateScrollBars(handle);
+
+			RECT wr,cr;
+			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
+			if(GetClientRect(handle->windowHandle,&cr)==0) break;
+
+			int xborder = (wr.right - wr.left) - (cr.right - cr.left); // + GetSystemMetrics(SM_CXVSCROLL);
+			int yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+
+			int owidth = LOWORD(lParam) - xborder;
+			int oheight = HIWORD(lParam)  - yborder;
+
+			int width = owidth;
+			int height = oheight;
+
+			clHandleWindowResize(handle, width,height);
+		}
+
+		handle->lastWindowState = (int)wParam;
+			
+		clUpdateScrollBars(handle);
+		break;
+
+	case WM_HSCROLL:
 		{
 			SCROLLINFO si;
 			si.cbSize = sizeof(si);
 			si.fMask = SIF_TRACKPOS;
-			GetScrollInfo(hwnd, SB_VERT, &si);
+			GetScrollInfo(hwnd, SB_HORZ, &si);
 			int sbValue = si.nTrackPos;
-			if(sbValue != handle->scrollOffset)
+
+			switch(LOWORD(wParam))
+			{
+			case SB_LINEDOWN:       //Scrolls one line down.
+				sbValue++;
+				break;
+
+			case SB_LINEUP:         //Scrolls one line up.
+				sbValue--;
+				break;
+
+			case SB_PAGEDOWN:       //Scrolls one page down.
+				sbValue += si.nPage;
+				break;
+
+			case SB_PAGEUP:         //Scrolls one page up.
+				sbValue -= si.nPage;
+				break;
+			}
+
+			if(sbValue != handle->scrollOffsetX)
 			{
 				if(sbValue > (handle->bufferHeight - handle->windowHeight))
 					sbValue = (handle->bufferHeight - handle->windowHeight);
@@ -288,7 +413,49 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 				if(sbValue < 0)
 					sbValue = 0;
 
-				handle->scrollOffset = sbValue;
+				handle->scrollOffsetX = sbValue;
+				SetScrollPos(hwnd,SB_HORZ,sbValue,TRUE);
+				InvalidateRect(hwnd,NULL,FALSE);
+			}
+		}
+
+	case WM_VSCROLL:
+		{
+			SCROLLINFO si;
+			si.cbSize = sizeof(si);
+			si.fMask = SIF_TRACKPOS|SIF_PAGE;
+			GetScrollInfo(hwnd, SB_VERT, &si);
+
+			int sbValue = si.nTrackPos;
+
+			switch(LOWORD(wParam))
+			{
+			case SB_LINEDOWN:       //Scrolls one line down.
+				sbValue++;
+				break;
+
+			case SB_LINEUP:         //Scrolls one line up.
+				sbValue--;
+				break;
+
+			case SB_PAGEDOWN:       //Scrolls one page down.
+				sbValue += si.nPage;
+				break;
+
+			case SB_PAGEUP:         //Scrolls one page up.
+				sbValue -= si.nPage;
+				break;
+			}
+
+			if(sbValue != handle->scrollOffsetY)
+			{
+				if(sbValue > (handle->bufferHeight - handle->windowHeight))
+					sbValue = (handle->bufferHeight - handle->windowHeight);
+
+				if(sbValue < 0)
+					sbValue = 0;
+
+				handle->scrollOffsetY = sbValue;
 				SetScrollPos(hwnd,SB_VERT,sbValue,TRUE);
 				InvalidateRect(hwnd,NULL,FALSE);
 			}
@@ -297,6 +464,8 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 	case WM_PAINT:
 
 		PAINTSTRUCT paint;
+
+		clUpdateScrollBars(handle);
 
 		HDC hdc = BeginPaint(hwnd,&paint);
 
@@ -327,8 +496,8 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		wchar_t* temp = new wchar_t[handle->windowWidth+1];
 		for(int y=t;y<b;y++)
 		{
-			int* cRow = handle->characterRows[y+handle->scrollOffset];
-			int* aRow = handle->attributeRows[y+handle->scrollOffset];
+			int* cRow = handle->characterRows[y+handle->scrollOffsetY];
+			int* aRow = handle->attributeRows[y+handle->scrollOffsetY];
 			int nchars=0;
 			int lastx=l;
 
@@ -391,7 +560,7 @@ static void clCreateWindow(clHandle handle)
 		wndclass.hInstance = GetModuleHandle(NULL);
 		wndclass.hIcon = NULL;
 		wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
-		wndclass.hbrBackground = CreateSolidBrush(RGB(255,0,255));
+		wndclass.hbrBackground = NULL; // CreateSolidBrush(RGB(255,0,255));
 		wndclass.lpszMenuName = NULL;
 		wndclass.lpszClassName = _T("ConLibWindow");
 		wndclass.hIconSm = NULL;
@@ -406,7 +575,8 @@ static void clCreateWindow(clHandle handle)
 	swprintf_s(sWndName, 2000, _T("ConLibConsole_%08x"), handle);
 
 	HWND window = CreateWindowEx(
-		WS_EX_OVERLAPPEDWINDOW,_T("ConLibWindow"),sWndName, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_VSCROLL,
+		WS_EX_OVERLAPPEDWINDOW,_T("ConLibWindow"),sWndName, 
+		WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL,
 		CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
 		0, 0, 0, 0);
 
@@ -440,22 +610,9 @@ static void clCreateWindow(clHandle handle)
 	handle->characterWidth = tm.tmAveCharWidth;
 	handle->characterHeight = tm.tmHeight;
 
-	SCROLLINFO si;
-
-	si.cbSize = sizeof(SCROLLINFO);
-	si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
-	si.nPage = handle->windowHeight;
-	si.nMin = 0;
-	si.nMax = (handle->bufferHeight-handle->windowHeight);
-	si.nPos = 0;
-	
-	SetScrollInfo(window,SB_VERT, &si, TRUE);
-
 	ReleaseDC(window,hdc);
 
 	UpdateWindow(window);
-
-	//SendMessage(window,SBM_ENABLE_ARROWS,ESB_ENABLE_BOTH,0);
 
 	RedrawWindow(window, NULL, NULL, RDW_FRAME|RDW_INVALIDATE|RDW_ERASE|RDW_FRAME);
 
@@ -558,7 +715,10 @@ clHandle clCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int
 
 	handle->defaultAttribute.all = defAttr;
 	handle->currentAttribute.all = defAttr;
-	handle->scrollOffset = 0;
+	handle->scrollOffsetY = 0;
+	handle->scrollOffsetX = 0;
+
+	handle->lastWindowState = SIZE_RESTORED;
 
 	clGotoXY(handle,0,0);
 
@@ -609,7 +769,7 @@ void clSetControlParameter(clHandle handle, int parameterId, int value)
 		if(value<0)	value=0;
 		if(value>(handle->bufferHeight-handle->windowHeight))
 			value=(handle->bufferHeight-handle->windowHeight);
-		handle->scrollOffset = value;
+		handle->scrollOffsetY = value;
 		break;
 	}
 }
@@ -625,7 +785,7 @@ int  clGetControlParameter(clHandle handle, int parameterId)
 	case CL_CURRENT_ATTRIBUTE:
 		return handle->currentAttribute.all;
 	case CL_SCROLL_OFFSET:
-		return handle->scrollOffset;
+		return handle->scrollOffsetY;
 	}
 	return -1;
 }
