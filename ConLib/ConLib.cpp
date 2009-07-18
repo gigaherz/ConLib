@@ -214,6 +214,7 @@ static int clInternalWrite(clHandle handle, const wchar_t* data, int characters)
 	int chars=characters;
 	for(int chars=characters;chars>0;chars--)
 	{
+		//wprintf(L"%c",*data);
 		clPutChar(handle, *data++);
 	}
 //	if(characters>0)
@@ -605,11 +606,11 @@ static void clCreateWindow(clHandle handle)
 		0, 0, 0, 0);
 
 	handle->windowFont = CreateFont(
-		14,0,
+		14,8,
 		0,0,
 		FW_DONTCARE,
 		FALSE,FALSE,FALSE,
-		ANSI_CHARSET,
+		DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
 		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
 		L"Lucida Console"
@@ -829,7 +830,7 @@ int  clPrintW(clHandle console, wchar_t* text, int length)
 {
 	COPYDATASTRUCT cd;
 
-	cd.cbData = length;
+	cd.cbData = length*2;
 	cd.lpData = text;
 	cd.dwData = CL_DATA_UNICODE;
 
@@ -865,6 +866,8 @@ int clWPrintf(clHandle handle, const wchar_t* fmt, ...)
 	int ret = vswprintf_s(text,fmt,lst);
 	text[4095]=0;
 	va_end(lst);
+
+	ret = wcslen(text); // 
 
 	clPrintW(handle, text, ret);
 
