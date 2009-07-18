@@ -508,12 +508,12 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		if(b > handle->windowHeight)
 			b=handle->windowHeight;
 
-		SelectObject(hdc,handle->windowFont);
-
 		charAttribute lat=handle->currentAttribute;
 
 		COLORREF bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
 		COLORREF fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+
+		SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
 
 		SetTextColor(hdc, fColor);
 		SetBkColor(hdc, bColor);
@@ -530,7 +530,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 			{
 				charAttribute at;
 
-				at.all = aRow[x];
+				at.all = aRow[x+handle->scrollOffsetX];
 
 				if(at.all != lat.all)
 				{
@@ -544,11 +544,12 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 					lat=at;
 					bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
 					fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+					SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
 					SetTextColor(hdc, fColor);
 					SetBkColor(hdc, bColor);
 				}
 				lat=at;
-				temp[nchars++] = (wchar_t)cRow[x];
+				temp[nchars++] = (wchar_t)cRow[x+handle->scrollOffsetX];
 			}
 			temp[nchars]=0;
 			if(nchars>0)
@@ -605,10 +606,21 @@ static void clCreateWindow(clHandle handle)
 		CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
 		0, 0, 0, 0);
 
-	handle->windowFont = CreateFont(
+	handle->fontNormal = CreateFont(
 		14,8,
 		0,0,
-		FW_DONTCARE,
+		FW_NORMAL,
+		FALSE,FALSE,FALSE,
+		DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
+		L"Lucida Console"
+		);
+
+	handle->fontBold = CreateFont(
+		14,7,
+		0,0,
+		FW_SEMIBOLD,
 		FALSE,FALSE,FALSE,
 		DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
@@ -625,7 +637,7 @@ static void clCreateWindow(clHandle handle)
 	TEXTMETRIC tm;
 	//LOGFONT lfont;
 	HDC hdc = GetDC(window);
-	SelectObject(hdc,handle->windowFont);
+	SelectObject(hdc,handle->fontNormal);
 
 	GetTextMetrics(hdc, &tm);
 

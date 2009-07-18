@@ -61,7 +61,8 @@ typedef struct conLibPrivateData
 	bool scrollBarVisibleX;
 	bool scrollBarVisibleY;
 
-	HFONT windowFont;
+	HFONT fontNormal;
+	HFONT fontBold;
 
 	HWND windowHandle;
 
