@@ -61,6 +61,12 @@ typedef struct conLibPrivateData
 	bool scrollBarVisibleX;
 	bool scrollBarVisibleY;
 
+	int selectionMode;		// 0 = not selecting anything, 1= linear, 2= block, 3= rectangle
+	int selectionStartX;	// Column
+	int selectionStartY;	// Row
+	int selectionEndX;		// Column
+	int selectionEndY;		// Row
+
 	HFONT fontNormal;
 	HFONT fontBold;
 

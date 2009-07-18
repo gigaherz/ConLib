@@ -606,21 +606,10 @@ static void clCreateWindow(clHandle handle)
 		CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
 		0, 0, 0, 0);
 
-	handle->fontNormal = CreateFont(
-		14,8,
-		0,0,
-		FW_NORMAL,
-		FALSE,FALSE,FALSE,
-		DEFAULT_CHARSET,
-		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
-		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
-		L"Lucida Console"
-		);
-
 	handle->fontBold = CreateFont(
 		14,7,
 		0,0,
-		FW_SEMIBOLD,
+		FW_BOLD,
 		FALSE,FALSE,FALSE,
 		DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
@@ -637,7 +626,7 @@ static void clCreateWindow(clHandle handle)
 	TEXTMETRIC tm;
 	//LOGFONT lfont;
 	HDC hdc = GetDC(window);
-	SelectObject(hdc,handle->fontNormal);
+	SelectObject(hdc,handle->fontBold);
 
 	GetTextMetrics(hdc, &tm);
 
@@ -648,6 +637,19 @@ static void clCreateWindow(clHandle handle)
 	handle->characterHeight = tm.tmHeight;
 
 	ReleaseDC(window,hdc);
+
+
+	handle->fontNormal = CreateFont(
+		14,14*handle->characterWidth/handle->characterHeight,
+		0,0,
+		FW_NORMAL,
+		FALSE,FALSE,FALSE,
+		DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
+		L"Lucida Console"
+		);
+
 
 	UpdateWindow(window);
 
@@ -835,7 +837,7 @@ int  clPrintA(clHandle console, char* text, int length)
 	cd.lpData = text;
 	cd.dwData = CL_DATA_ANSI;
 
-	return SendMessage(console->windowHandle, WM_COPYDATA, (WPARAM)console, (LPARAM)&cd);
+	return SendMessage(console->windowHandle, WM_COPYDATA, 0, (LPARAM)&cd);
 }
 
 int  clPrintW(clHandle console, wchar_t* text, int length)
@@ -846,7 +848,7 @@ int  clPrintW(clHandle console, wchar_t* text, int length)
 	cd.lpData = text;
 	cd.dwData = CL_DATA_UNICODE;
 
-	return SendMessage(console->windowHandle, WM_COPYDATA, (WPARAM)console, (LPARAM)&cd);
+	return SendMessage(console->windowHandle, WM_COPYDATA, 0, (LPARAM)&cd);
 }
 
 int clPrintf(clHandle handle, const char* fmt, ...)
