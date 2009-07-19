@@ -24,6 +24,8 @@
 #include "ConLibInternal.h"
 #include <windowsx.h>
 
+#include <string>
+
 #define TAB_SIZE 8
 
 bool classRegistered=false;
@@ -348,6 +350,186 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 	case WM_COPYDATA:
 		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
 
+	case WM_LBUTTONDOWN:
+
+		if(handle->selectionMode==0)
+			SetCapture(hwnd);
+
+		handle->selectionMode = 1;
+		if(wParam&MK_CONTROL)
+			handle->selectionMode = 2;
+		else if(wParam&MK_SHIFT)
+			handle->selectionMode = 3;
+
+		handle->selectionStartX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
+		handle->selectionStartY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
+
+		handle->mouseLIsPressed = true;
+
+		break;
+
+	case WM_MOUSEMOVE:
+		if(handle->selectionMode>0)
+		{
+			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
+			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
+		}
+
+		break;
+
+	case WM_LBUTTONUP:
+
+		if(handle->selectionMode>0)
+		{
+			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
+			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
+			ReleaseCapture();
+		}
+		handle->mouseLIsPressed = false;
+
+		break;
+
+	case WM_KEYDOWN:
+
+		if(handle->mouseLIsPressed)
+		{
+			if(wParam == VK_CONTROL)
+			{
+				handle->ctrlIsPressed = true;
+				handle->selectionMode = 2;
+			}
+			else if(wParam == VK_SHIFT)
+			{
+				handle->shiftIsPressed = true;
+				handle->selectionMode = 3;
+			}
+		}
+		else
+		{
+			if(wParam == VK_CONTROL)
+				handle->ctrlIsPressed = true;
+			else if(wParam == VK_SHIFT)
+				handle->shiftIsPressed = true;
+		}
+		break;
+
+	case WM_KEYUP:
+
+		if(handle->mouseLIsPressed)
+		{
+			if(wParam == VK_CONTROL)
+			{
+				handle->ctrlIsPressed = false;
+				handle->selectionMode = 1;
+
+				if(handle->shiftIsPressed)
+					handle->selectionMode = 3;
+			}
+			else if(wParam == VK_SHIFT)
+			{
+				handle->shiftIsPressed = false;
+				handle->selectionMode = 1;
+
+				if(handle->ctrlIsPressed)
+					handle->selectionMode = 2;
+			}
+		}
+		else
+		{
+			if(wParam == VK_CONTROL)
+				handle->ctrlIsPressed = false;
+			else if(wParam == VK_SHIFT)
+				handle->shiftIsPressed = false;
+		}
+
+		if((wParam == 'C') && (handle->ctrlIsPressed) && (handle->selectionMode != 0))
+		{
+			std::wstring copiedText = L"";
+
+			switch(handle->selectionMode)
+			{
+			case 1: // inline
+				{
+					for(int x=handle->selectionStartX;x<handle->bufferWidth;x++)
+					{
+						copiedText += (wchar_t)(handle->characterRows[handle->selectionStartY][x]);
+					}
+					if (handle->selectionStartY < handle->selectionEndY)
+					{
+						copiedText += L"\r\n";
+						for(int y=handle->selectionStartY+1;y<handle->selectionEndY;y++)
+						{
+							for(int x=0;x<handle->bufferWidth;x++)
+							{
+								copiedText += (wchar_t)(handle->characterRows[y][x]);
+							}
+							copiedText += L"\r\n";
+						}
+						for(int x=0;x<=handle->selectionEndX;x++)
+						{
+							copiedText += (wchar_t)(handle->characterRows[handle->selectionEndY][x]);
+						}
+					}
+				}
+				break;
+			case 2: // whole lines
+				{
+					for(int y=handle->selectionStartY;y<=handle->selectionEndY;y++)
+					{
+						for(int x=0;x<handle->bufferWidth;x++)
+						{
+							copiedText += (wchar_t)(handle->characterRows[y][x]);
+						}
+						copiedText += L"\r\n";
+					}
+				}
+				break;
+			case 3: // rectangle
+				{
+					for(int y=handle->selectionStartY;y<=handle->selectionEndY;y++)
+					{
+						for(int x=handle->selectionStartY;x<=handle->selectionEndY;x++)
+						{
+							copiedText += (wchar_t)(handle->characterRows[y][x]);
+						}
+						copiedText += L"\r\n";
+					}
+				}
+				break;
+			}
+
+			if(copiedText.length() > 0)
+			{
+				if(OpenClipboard(hwnd))
+				{
+					EmptyClipboard();
+
+					if(HANDLE hMem = GlobalAlloc(GMEM_MOVEABLE, (copiedText.length()+1) * sizeof(wchar_t)))
+					{
+						wchar_t* ptr = (wchar_t*)GlobalLock(hMem);
+						CopyMemory(ptr,copiedText.c_str(),(copiedText.length()+1) * sizeof(wchar_t));
+						ptr[copiedText.length()]=0;
+						GlobalUnlock(hMem);
+
+						SetClipboardData(CF_UNICODETEXT,hMem);
+					}
+
+					if(HANDLE hMem = GlobalAlloc(GMEM_MOVEABLE, copiedText.length()+1))
+					{
+						char* ptr = (char*)GlobalLock(hMem);
+						WideCharToMultiByte(CP_THREAD_ACP,WC_COMPOSITECHECK,copiedText.c_str(),copiedText.length(),ptr,copiedText.length()+1,NULL,NULL);
+						ptr[copiedText.length()]=0;
+						GlobalUnlock(hMem);
+
+						SetClipboardData(CF_TEXT,hMem);
+					}
+
+					CloseClipboard();
+				}
+			}
+		}
+
+		break;
 	case WM_GETMINMAXINFO:
 		{
 			MINMAXINFO *mmi=(MINMAXINFO*)lParam;
@@ -372,6 +554,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 			mmi->ptMaxSize.y = min(cym,maxy);
 		}
 		break;
+
 	case WM_SIZING:
 
 		if(handle->lastWindowState != wParam)
@@ -761,7 +944,7 @@ clHandle CALLBACK clCreateConsole(int bufferWidth, int bufferHeight, int windowW
 	handle->scrollOffsetY = 0;
 	handle->scrollOffsetX = 0;
 
-	handle->notificationCallback == NULL;
+	handle->notificationCallback = NULL;
 
 	handle->lastWindowState = SIZE_RESTORED;
 

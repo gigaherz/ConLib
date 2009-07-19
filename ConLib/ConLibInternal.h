@@ -68,6 +68,11 @@ typedef struct conLibPrivateData
 	int selectionStartY;	// Row
 	int selectionEndX;		// Column
 	int selectionEndY;		// Row
+	
+	int shiftIsPressed;
+	int ctrlIsPressed;
+
+	int mouseLIsPressed;
 
 	pclNotificationCallback notificationCallback;
 
