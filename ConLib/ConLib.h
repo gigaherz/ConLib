@@ -17,10 +17,12 @@
 #ifndef _CONLIB_H_
 #define _CONLIB_H_
 
+#include "ConLibCallbacks.h"
+
 #ifdef INTERNAL_DEFINES
-#define EXPORTED(ret) extern "C" ret __declspec(dllexport) 
+#define EXPORTED(ret) extern "C" ret __declspec(dllexport) __stdcall
 #else
-#define EXPORTED(ret) extern "C" ret __declspec(dllimport) 
+#define EXPORTED(ret) extern "C" ret __declspec(dllimport) __stdcall
 typedef struct conLibPrivateData {}* clHandle;
 #endif
 
@@ -59,6 +61,9 @@ typedef struct conLibPrivateData {}* clHandle;
 // Macros
 #define CL_MAKE_ATTRIBUTE(bold,fr,fg,fb,br,bg,bb) (((bold)<<31)|((fr)<<26)|((fg)<<21)|((fb)<<16)|((br)<<10)|((bg)<<5)|((bb)<<0))
 
+// Notifications
+#define CL_NOTIFY_CLOSE		0x00000001
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -70,6 +75,8 @@ EXPORTED(void) clSetWindowTitle(clHandle console, const wchar_t* windowTitle);
 
 EXPORTED(void) clSetControlParameter(clHandle console, int parameterId, int value);
 EXPORTED(int)  clGetControlParameter(clHandle console, int parameterId);
+
+EXPORTED(void) clSetNotificationCallback(clHandle console, pclNotificationCallback callback);
 
 void inline clGotoXY(clHandle console, int x, int y)
 {

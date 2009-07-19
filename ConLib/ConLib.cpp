@@ -341,6 +341,10 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 	clHandle handle = (clHandle)GetWindowLongPtr(hwnd, GWL_USERDATA);
 	switch(message)
 	{
+	case WM_CLOSE:
+		if(handle->notificationCallback) 
+			return handle->notificationCallback(CL_NOTIFY_CLOSE, wParam, lParam);
+		break;
 	case WM_COPYDATA:
 		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
 
@@ -707,7 +711,7 @@ static DWORD clThreadProc(clHandle handle)
 	return 0;
 }
 
-clHandle clCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight)
+clHandle CALLBACK clCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight)
 {
 	clHandle handle = new conLibPrivateData;
 
@@ -757,6 +761,8 @@ clHandle clCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int
 	handle->scrollOffsetY = 0;
 	handle->scrollOffsetX = 0;
 
+	handle->notificationCallback == NULL;
+
 	handle->lastWindowState = SIZE_RESTORED;
 
 	clGotoXY(handle,0,0);
@@ -768,7 +774,7 @@ clHandle clCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int
 	return handle;
 }
 
-void clDestroyConsole(clHandle handle)
+void CALLBACK clDestroyConsole(clHandle handle)
 {
 	if(handle==NULL)
 		return;
@@ -787,7 +793,7 @@ void clDestroyConsole(clHandle handle)
 	delete handle;
 }
 
-void clSetControlParameter(clHandle handle, int parameterId, int value)
+void CALLBACK clSetControlParameter(clHandle handle, int parameterId, int value)
 {
 	switch(parameterId)
 	{
@@ -813,7 +819,7 @@ void clSetControlParameter(clHandle handle, int parameterId, int value)
 	}
 }
 
-int  clGetControlParameter(clHandle handle, int parameterId)
+int  CALLBACK clGetControlParameter(clHandle handle, int parameterId)
 {
 	switch(parameterId)
 	{
@@ -829,7 +835,7 @@ int  clGetControlParameter(clHandle handle, int parameterId)
 	return -1;
 }
 
-int  clPrintA(clHandle console, char* text, int length)
+int  CALLBACK clPrintA(clHandle console, char* text, int length)
 {
 	COPYDATASTRUCT cd;
 
@@ -840,7 +846,7 @@ int  clPrintA(clHandle console, char* text, int length)
 	return SendMessage(console->windowHandle, WM_COPYDATA, 0, (LPARAM)&cd);
 }
 
-int  clPrintW(clHandle console, wchar_t* text, int length)
+int  CALLBACK clPrintW(clHandle console, wchar_t* text, int length)
 {
 	COPYDATASTRUCT cd;
 
@@ -851,7 +857,7 @@ int  clPrintW(clHandle console, wchar_t* text, int length)
 	return SendMessage(console->windowHandle, WM_COPYDATA, 0, (LPARAM)&cd);
 }
 
-int clPrintf(clHandle handle, const char* fmt, ...)
+int CALLBACK clPrintf(clHandle handle, const char* fmt, ...)
 {
 	va_list lst;
 
@@ -870,7 +876,7 @@ int clPrintf(clHandle handle, const char* fmt, ...)
 	return ret;
 }
 
-int clWPrintf(clHandle handle, const wchar_t* fmt, ...)
+int CALLBACK clWPrintf(clHandle handle, const wchar_t* fmt, ...)
 {
 	va_list lst;
 
@@ -888,7 +894,12 @@ int clWPrintf(clHandle handle, const wchar_t* fmt, ...)
 	return ret;
 }
 
-void clSetWindowTitle(clHandle console, const wchar_t* windowTitle)
+void CALLBACK clSetWindowTitle(clHandle console, const wchar_t* windowTitle)
 {
 	SendMessage(console->windowHandle,WM_SETTEXT, 0, (LPARAM)windowTitle);
+}
+
+void CALLBACK clSetNotificationCallback(clHandle console, pclNotificationCallback callback)
+{
+	console->notificationCallback = callback;
 }

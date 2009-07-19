@@ -16,6 +16,8 @@
 //
 #pragma once
 
+#include "ConLibCallbacks.h"
+
 union charAttribute {
 	struct {
 		int bgColorB : 5;
@@ -66,6 +68,8 @@ typedef struct conLibPrivateData
 	int selectionStartY;	// Row
 	int selectionEndX;		// Column
 	int selectionEndY;		// Row
+
+	pclNotificationCallback notificationCallback;
 
 	HFONT fontNormal;
 	HFONT fontBold;

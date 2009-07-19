@@ -318,6 +318,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ConLibCallbacks.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ConLibInternal.h"
 				>
 			</File>
