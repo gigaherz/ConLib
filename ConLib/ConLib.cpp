@@ -337,6 +337,18 @@ static void clProcessResize(clHandle handle, RECT* r, int wParam)
 
 }
 
+static void clRepaintSelection(clHandle handle, int sx, int sy, int ex, int ey)
+{
+	RECT r;
+	
+	r.left = (sx - handle->scrollOffsetX) * handle->characterWidth;
+	r.top = (sy - handle->scrollOffsetY) * handle->characterHeight;
+	r.right = (ex + 2 - handle->scrollOffsetX) * handle->characterWidth;
+	r.bottom = (ey + 2 - handle->scrollOffsetY) * handle->characterHeight;
+
+	InvalidateRect(handle->windowHandle,&r,TRUE);
+}
+
 static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 								WPARAM wParam, LPARAM lParam)
 {
@@ -363,16 +375,20 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 
 		handle->selectionStartX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
 		handle->selectionStartY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
-
+		handle->selectionEndX = handle->selectionStartX; 
+		handle->selectionEndY = handle->selectionStartY; 
 		handle->mouseLIsPressed = true;
+
+		InvalidateRect(hwnd,NULL,FALSE);
 
 		break;
 
 	case WM_MOUSEMOVE:
-		if(handle->selectionMode>0)
+		if((handle->selectionMode>0)&&(handle->mouseLIsPressed))
 		{
 			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
 			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
+			InvalidateRect(hwnd,NULL,FALSE);
 		}
 
 		break;
@@ -384,6 +400,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
 			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
 			ReleaseCapture();
+			InvalidateRect(hwnd,NULL,FALSE);
 		}
 		handle->mouseLIsPressed = false;
 
@@ -391,7 +408,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 
 	case WM_KEYDOWN:
 
-		if(handle->mouseLIsPressed)
+		if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
 		{
 			if(wParam == VK_CONTROL)
 			{
@@ -403,6 +420,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 				handle->shiftIsPressed = true;
 				handle->selectionMode = 3;
 			}
+			InvalidateRect(hwnd,NULL,FALSE);
 		}
 		else
 		{
@@ -415,7 +433,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 
 	case WM_KEYUP:
 
-		if(handle->mouseLIsPressed)
+		if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
 		{
 			if(wParam == VK_CONTROL)
 			{
@@ -433,6 +451,7 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 				if(handle->ctrlIsPressed)
 					handle->selectionMode = 2;
 			}
+			InvalidateRect(hwnd,NULL,FALSE);
 		}
 		else
 		{
@@ -442,7 +461,16 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 				handle->shiftIsPressed = false;
 		}
 
-		if((wParam == 'C') && (handle->ctrlIsPressed) && (handle->selectionMode != 0))
+		if(wParam == VK_ESCAPE)
+		{
+			if(handle->selectionMode>0)
+			{
+				handle->selectionMode = false;
+				InvalidateRect(hwnd,NULL,FALSE);
+			}
+		}
+
+		if((wParam == 'C') && (handle->ctrlIsPressed) && (handle->selectionMode > 0))
 		{
 			std::wstring copiedText = L"";
 
@@ -527,6 +555,9 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 					CloseClipboard();
 				}
 			}
+
+			handle->selectionMode = false;
+			InvalidateRect(hwnd,NULL,FALSE);
 		}
 
 		break;
@@ -700,6 +731,26 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		COLORREF bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
 		COLORREF fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
 
+		// for sel modes 1 and 2
+		int selStartI = 0;
+		int selEndI   = -1;
+		int selMode   = handle->selectionMode;
+		int bufWidth  = handle->bufferWidth;
+
+		switch(selMode)
+		{
+		case 1:
+			selStartI = (handle->selectionStartY * bufWidth) + handle->selectionStartX;
+			selEndI   = (handle->selectionEndY * bufWidth) + handle->selectionEndX;
+			break;
+		case 2:
+			selStartI = (handle->selectionStartY * handle->bufferWidth);
+			selEndI   = ((handle->selectionEndY + 1) * handle->bufferWidth) - 1;
+			break;
+		}
+
+		bool lastSelected = false;
+
 		SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
 
 		SetTextColor(hdc, fColor);
@@ -708,18 +759,37 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 		wchar_t* temp = new wchar_t[handle->windowWidth+1];
 		for(int y=t;y<b;y++)
 		{
-			int* cRow = handle->characterRows[y+handle->scrollOffsetY];
-			int* aRow = handle->attributeRows[y+handle->scrollOffsetY];
+			int ay = y+handle->scrollOffsetY;
+
+			int* cRow = handle->characterRows[ay];
+			int* aRow = handle->attributeRows[ay];
 			int nchars=0;
 			int lastx=l;
 
 			for(int x=l;x<r;x++)
 			{
+				bool isSelected = false;
 				charAttribute at;
 
-				at.all = aRow[x+handle->scrollOffsetX];
+				int ax = x+handle->scrollOffsetX;
 
-				if(at.all != lat.all)
+				at.all = aRow[ax];
+
+				if(selMode==1)
+				{
+					int cI = (ay * bufWidth) + ax;
+					isSelected = (cI>=selStartI) && (cI<=selEndI);
+				}
+				else if(selMode==2)
+				{
+					isSelected = (ay >= handle->selectionStartY) && (ay <= handle->selectionEndY);
+				}
+				else if(selMode==3)
+				{
+					isSelected = (ay >= handle->selectionStartY) && (ay <= handle->selectionEndY) && (ax >= handle->selectionStartX) && (ax <= handle->selectionEndX);
+				}
+
+				if((at.all != lat.all) || (lastSelected != isSelected))
 				{
 					temp[nchars]=0;
 					if(nchars>0)
@@ -728,23 +798,42 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message,
 					}
 					nchars=0;
 					lastx=x;
-					lat=at;
-					bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-					fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
-					SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
+
+					if(isSelected)
+					{
+						int t = lat.bgColorB + lat.bgColorG + lat.bgColorR;
+
+						if(t > 48)
+						{
+							fColor = 0x00ffffff;
+							bColor = 0x00000000;
+						}
+						else
+						{
+							bColor = 0x00ffffff;
+							fColor = 0x00000000;
+						}
+					}
+					else
+					{
+						bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
+						fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
+					}
+					SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
 					SetTextColor(hdc, fColor);
 					SetBkColor(hdc, bColor);
 				}
 				lat=at;
-				temp[nchars++] = (wchar_t)cRow[x+handle->scrollOffsetX];
+				lastSelected = isSelected;
+				temp[nchars++] = (wchar_t)cRow[ax];
 			}
 			temp[nchars]=0;
 			if(nchars>0)
 			{
-				bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-				fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
-				SetTextColor(hdc, fColor);
-				SetBkColor(hdc, bColor);
+// 				bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
+// 				fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+// 				SetTextColor(hdc, fColor);
+// 				SetBkColor(hdc, bColor);
 				clRepaintText(handle, hdc, lastx, y, temp, nchars);
 			}
 		}
