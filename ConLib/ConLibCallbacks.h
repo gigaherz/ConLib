@@ -10,8 +10,8 @@
 #define UINTPTR unsigned int
 #endif
 
-// Used to receive notifications. Most notably, closing the window.
-typedef int (__stdcall* pclNotificationCallback)(int notificationId, INTPTR wParam, UINTPTR lParam);
+// Used to receive notifications. Most notably, ConLibosing the window.
+typedef int (__stdcall* pConLibNotificationCallback)(int notificationId, INTPTR wParam, UINTPTR lParam);
 
 
 #endif//_CONLIB_CALLBACKS_H_

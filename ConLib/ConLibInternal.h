@@ -1,4 +1,4 @@
-// ConLib - Win32 Replacement Console Library
+// ConLib - Win32 Replacement ConLib Library
 // Copyright (C) 2009  David Quintana Conejero <gigaherz@gmail.com>
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -74,22 +74,24 @@ typedef struct conLibPrivateData
 
 	int mouseLIsPressed;
 
-	pclNotificationCallback notificationCallback;
+	pConLibNotificationCallback notificationCallback;
 
 	HFONT fontNormal;
 	HFONT fontBold;
 
 	HWND windowHandle;
+	TCHAR* sWndName;
+
 
 	HANDLE hThread;
 	DWORD idThread;
 
 	bool windowCreated;
 
-}* clHandle;
+}* ConLibHandle;
 
-#define CL_DATA_ANSI 0
-#define CL_DATA_UNICODE 1
+#define CONSOLE_DATA_ANSI 0
+#define CONSOLE_DATA_UNICODE 1
 
 #define INTERNAL_DEFINES
 #include "ConLib.h"
