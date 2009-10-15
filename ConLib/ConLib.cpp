@@ -222,7 +222,6 @@ static int ConLibInternalWrite(ConLibHandle handle, const wchar_t* data, int cha
 	int chars=characters;
 	for(int chars=characters;chars>0;chars--)
 	{
-		//wprintf(L"%c",*data);
 		ConLibPutChar(handle, *data++);
 	}
 //	if(characters>0)
@@ -1057,7 +1056,6 @@ static DWORD ConLibThreadProc(ConLibHandle handle)
 
 		if((msg.message == WM_DESTROY)|| closing)
 		{
-			printf("Console is being destroyed.");
 			break;
 		}
 	}
@@ -1075,7 +1073,6 @@ ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int
 
 	if(!handle)
 	{
-		printf("Handle is null. ");
 		return NULL;
 	}
 
@@ -1141,7 +1138,7 @@ ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int
 		{
 			if(code != STILL_ACTIVE)
 			{
-				printf("Thread exited early! ");
+				delete handle;
 				return NULL;
 			}
 		}
