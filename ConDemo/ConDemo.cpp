@@ -16,10 +16,9 @@
 //
 // ConDemo.cpp : Defines the entry point for the console application.
 //
-
-#include "stdafx.h"
-
 #include "../ConLib/ConLib.h"
+#include "targetver.h"
+#include <stdio.h>
 #include <windows.h>
 
 bool not_closed=true;

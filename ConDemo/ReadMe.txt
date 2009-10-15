@@ -1,4 +1,4 @@
-ConDemo - Win32 Replacement Console Library
+ConDemo - Win32 Replacement Console Library Demo
 Copyright (C) 2009  David Quintana Conejero <gigaherz@gmail.com>
 
 This program is free software: you can redistribute it and/or modify

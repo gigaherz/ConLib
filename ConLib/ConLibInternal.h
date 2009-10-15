@@ -1,4 +1,4 @@
-// ConLib - Win32 Replacement ConLib Library
+// ConLib - Win32 Replacement Console Library
 // Copyright (C) 2009  David Quintana Conejero <gigaherz@gmail.com>
 // 
 // This program is free software: you can redistribute it and/or modify

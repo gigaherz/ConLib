@@ -16,8 +16,9 @@
 //
 // ConLib.cpp : Defines the exported functions for the DLL application.
 //
-#include "stdafx.h"
+#include "targetver.h"
 
+#include <windows.h>
 #include <tchar.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -1280,3 +1281,20 @@ void CALLBACK ConLibSetNotificationCallback(ConLibHandle handle, pConLibNotifica
 {
 	handle->notificationCallback = callback;
 }
+
+BOOL APIENTRY DllMain( HMODULE hModule,
+					  DWORD  ul_reason_for_call,
+					  LPVOID lpReserved
+					  )
+{
+	switch (ul_reason_for_call)
+	{
+	case DLL_PROCESS_ATTACH:
+	case DLL_THREAD_ATTACH:
+	case DLL_THREAD_DETACH:
+	case DLL_PROCESS_DETACH:
+		break;
+	}
+	return TRUE;
+}
+
