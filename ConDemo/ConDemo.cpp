@@ -57,6 +57,8 @@ int main(int argc, char* argv[])
 	}
 
 	ConLibWPrintf(handle, L"\r\nUnicode crap: \r\n暑\r\nい\r\n日\r\n 汉\r\n语\r\n/\r\n漢\r\n語\r\n");
+	ConLibWPrintf(handle, L"\r\nUnicode crap (2): |暑い日汉语漢語|\r\n");
+	ConLibWPrintf(handle, L"\r\nUnicode crap (2): |..............|\r\n");
 
 	while(not_closed)
 	{
