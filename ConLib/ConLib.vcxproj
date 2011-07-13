@@ -134,12 +134,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ConLib.cpp" />
+    <ClCompile Include="UnicodeTools.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConLib.h" />
     <ClInclude Include="ConLibCallbacks.h" />
     <ClInclude Include="ConLibInternal.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="UnicodeTools.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />

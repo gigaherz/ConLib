@@ -18,6 +18,9 @@
     <ClCompile Include="ConLib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="UnicodeTools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConLib.h">
@@ -30,6 +33,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UnicodeTools.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

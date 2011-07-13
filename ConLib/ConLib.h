@@ -32,57 +32,72 @@ typedef struct conLibPrivateData {}* ConLibHandle;
 
 // Limits: these are artificial limits only, they can be modified,
 //         but performance and stability are not guaranteed if they are too big
-#define CONSOLE_MIN_BUFFER_WIDTH		16
+#define CONSOLE_MIN_BUFFER_WIDTH	16
 #define CONSOLE_MIN_BUFFER_HEIGHT	1
-#define CONSOLE_MAX_BUFFER_WIDTH		2048
+#define CONSOLE_MAX_BUFFER_WIDTH	2048
 #define CONSOLE_MAX_BUFFER_HEIGHT	65536
 
-#define CONSOLE_MIN_WINDOW_WIDTH		CONSOLE_MIN_BUFFER_WIDTH
+#define CONSOLE_MIN_WINDOW_WIDTH	CONSOLE_MIN_BUFFER_WIDTH
 #define CONSOLE_MIN_WINDOW_HEIGHT	CONSOLE_MIN_BUFFER_HEIGHT
-#define CONSOLE_MAX_WINDOW_WIDTH		CONSOLE_MAX_BUFFER_WIDTH
+#define CONSOLE_MAX_WINDOW_WIDTH	CONSOLE_MAX_BUFFER_WIDTH
 #define CONSOLE_MAX_WINDOW_HEIGHT	2048
 
 // Control parameters
-#define CONSOLE_PARAMETER(p_ConLibass,p_id) ((p_ConLibass<<16)|p_id)
+#define CONSOLE_PARAMETER(p_class,p_id) ((p_class<<16)|p_id)
 
-// Parameter ConLibasses (pretty useless right now, I know)
+// Parameter classes (pretty useless right now, I know)
 #define CONSOLE_CURSOR_CLASS		0x0001
-#define CONSOLE_ATTRIBUTE_CLASS	0x0002
-#define CONSOLE_SCROLL_CLASS		0x0003
+#define CONSOLE_BUFFER_CLASS		0x0002
+#define CONSOLE_WINDOW_CLASS		0x0003
 
 // Parameters
-#define CONSOLE_CURSOR_X				CONSOLE_PARAMETER(CONSOLE_CURSOR_CLASS,0x0000)
-#define CONSOLE_CURSOR_Y				CONSOLE_PARAMETER(CONSOLE_CURSOR_CLASS,0x0001)
+#define CONSOLE_CURSOR_X			CONSOLE_PARAMETER(CONSOLE_CURSOR_CLASS,0x0000)
+#define CONSOLE_CURSOR_Y			CONSOLE_PARAMETER(CONSOLE_CURSOR_CLASS,0x0001)
 
-#define CONSOLE_CURRENT_ATTRIBUTE	CONSOLE_PARAMETER(CONSOLE_ATTRIBUTE_CLASS,0x0000)
+#define CONSOLE_CURRENT_ATTRIBUTE	CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0000)
+#define CONSOLE_DEFAULT_ATTRIBUTE	CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0001)
 
-#define CONSOLE_SCROLL_OFFSET		CONSOLE_PARAMETER(CONSOLE_SCROLL_CLASS,0x0000)
+// TODO: make writable
+#define CONSOLE_BUFFER_SIZE_X		CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0002)
+#define CONSOLE_BUFFER_SIZE_Y		CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0003)
+
+#define CONSOLE_SCROLL_OFFSET_X		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0000)
+#define CONSOLE_SCROLL_OFFSET_Y		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0001)
+
+// TODO: make writable
+#define CONSOLE_WINDOW_SIZE_X		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0002)
+#define CONSOLE_WINDOW_SIZE_Y		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0003)
 
 // Macros
 #define CONSOLE_MAKE_ATTRIBUTE(bold,fr,fg,fb,br,bg,bb) (((bold)<<31)|((fr)<<26)|((fg)<<21)|((fb)<<16)|((br)<<10)|((bg)<<5)|((bb)<<0))
 
 // Notifications
 #define CONSOLE_NOTIFY_CLOSE		0x00000001
+#define CONSOLE_NOTIFY_SIZE_CHANGED	0x00000002
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
 
-EXPORTED(ConLibHandle) ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight);
-EXPORTED(void) ConLibDestroyConsole(ConLibHandle ConLib);
+EXPORTED(ConLibHandle) ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight, int defaultAttribute);
+EXPORTED(void) ConLibDestroyConsole(ConLibHandle handle);
 
-EXPORTED(void) ConLibSetWindowTitle(ConLibHandle ConLib, const wchar_t* windowTitle);
+EXPORTED(void) ConLibSetWindowTitle(ConLibHandle handle, const wchar_t* windowTitle);
 
-EXPORTED(void) ConLibSetControlParameter(ConLibHandle ConLib, int parameterId, int value);
-EXPORTED(int)  ConLibGetControlParameter(ConLibHandle ConLib, int parameterId);
+EXPORTED(void) ConLibSetControlParameter(ConLibHandle handle, int parameterId, int value);
+EXPORTED(int)  ConLibGetControlParameter(ConLibHandle handle, int parameterId);
 
-EXPORTED(void) ConLibSetNotificationCallback(ConLibHandle ConLib, pConLibNotificationCallback callback);
+EXPORTED(void) ConLibSetNotificationCallback(ConLibHandle handle, pConLibNotificationCallback callback);
 
-void inline ConLibGotoXY(ConLibHandle ConLib, int x, int y)
+void inline ConLibGotoXY(ConLibHandle handle, int x, int y)
 {
-	ConLibSetControlParameter(ConLib, CONSOLE_CURSOR_X,x);
-	ConLibSetControlParameter(ConLib, CONSOLE_CURSOR_Y,y);
+	ConLibSetControlParameter(handle, CONSOLE_CURSOR_X, x);
+	ConLibSetControlParameter(handle, CONSOLE_CURSOR_Y, y);
 }
+
+EXPORTED(void) ConLibClearBuffer(ConLibHandle handle);
+EXPORTED(void) ConLibClearVisibleArea(ConLibHandle handle);
+EXPORTED(void) ConLibClearLine(ConLibHandle handle);
 
 // Note: The consoles are wchar_t internally, these functions perform ansi->unicode conversion using
 //       the console thread's active code page

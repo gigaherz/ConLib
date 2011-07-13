@@ -28,6 +28,10 @@
 #include <string>
 #include <set>
 
+#include "UnicodeTools.h"
+
+#define CLMSG_CLEAR (WM_USER+1)
+
 #define TAB_SIZE 8
 #define FULLWIDTH_NOSPACE_FILLER 0x2060
 
@@ -37,158 +41,12 @@ MSG __declspec(thread) messageToPost;
 
 LONG timerNextID=0;
 
-static bool IsFullWidth(wchar_t character)
-{
-   /* Taken from:
-	* EastAsianWidth-6.0.0.txt
-	* Date: 2010-08-17, 12:17:00 PDT [KW]
-	*
-	* East Asian Width Properties
-	*
-	* This file is an informative contributory data file in the
-	* Unicode Character Database.
-	*
-	* Copyright (c) 1991-2010 Unicode, Inc.
-	* For terms of use, see http://www.unicode.org/terms_of_use.html
-	*/
-#define RANGE(a,b) ((character >= a) && (character <= b))
-#define SINGLE(a) (character == a)
-#if 0
-	// these ranges are "definately no"
-	if(RANGE(0x0020,0x007E)) return false;
-	if(RANGE(0x00A2,0x00A3)) return false;
-	if(RANGE(0x00A5,0x00A6)) return false;
-	if(SINGLE(0x00AC)) return false;
-	if(SINGLE(0x00AF)) return false;
-	if(SINGLE(0x20A9)) return false;
-	if(RANGE(0x27E6,0x27ED)) return false;
-	if(RANGE(0x2985,0x2986)) return false;
-	if(RANGE(0xFF61,0xFFBE)) return false;
-	if(RANGE(0xFFC2,0xFFC7)) return false;
-	if(RANGE(0xFFCA,0xFFCF)) return false;
-	if(RANGE(0xFFD2,0xFFD7)) return false;
-	if(RANGE(0xFFDA,0xFFDC)) return false;
-	if(RANGE(0xFFE8,0xFFEE)) return false;
-#endif
-	if(character < 0x8000)
-	{
-		if(character < 0x3000)
-		{
-			if(character < 0x2800)
-			{
-				if(RANGE(0x1100,0x115F)) return true;
-				if(RANGE(0x11A3,0x11A7)) return true;
-				if(RANGE(0x11FA,0x11FF)) return true;
-				if(RANGE(0x2329,0x232A)) return true;
-			}
-			else
-			{
-				if(RANGE(0x2E80,0x2E99)) return true;
-				if(RANGE(0x2E9B,0x2EF3)) return true;
-				if(RANGE(0x2F00,0x2FD5)) return true;
-				if(RANGE(0x2FF0,0x2FFB)) return true;
-			}
-		}
-		else
-		{
-			if(character < 0x3200)
-			{
-				if(character < 0x3130)
-				{
-					if(RANGE(0x3000,0x303E)) return true;
-					if(RANGE(0x3041,0x3096)) return true;
-					if(RANGE(0x3099,0x30FF)) return true;
-					if(RANGE(0x3105,0x312D)) return true;
-				}
-				else
-				{
-					if(RANGE(0x3131,0x318E)) return true;
-					if(RANGE(0x3190,0x31BA)) return true;
-					if(RANGE(0x31C0,0x31E3)) return true;
-					if(RANGE(0x31F0,0x31FF)) return true;
-				}
-			}
-			else
-			{
-				if(RANGE(0x3200,0x321E)) return true;
-				if(RANGE(0x3220,0x3247)) return true;
-				if(RANGE(0x3250,0x32FE)) return true;
-				if(RANGE(0x3300,0x33FF)) return true;
-				if(RANGE(0x3400,0x4DB5)) return true;
-				if(RANGE(0x4DB6,0x4DBF)) return true;
-				if(RANGE(0x4E00,0x7FFF)) return true;
-			}
-		}
-	}
-	else
-	{
-		if(character < 0xF000)
-		{
-			if(character < 0xA800)
-			{
-				if(RANGE(0x8000,0x9FCB)) return true;
-				if(RANGE(0x9FCC,0x9FFF)) return true;
-				if(RANGE(0xA000,0xA48C)) return true;
-				if(RANGE(0xA490,0xA4C6)) return true;
-			}
-			else
-			{
-				if(RANGE(0xA960,0xA97C)) return true;
-				if(RANGE(0xAC00,0xD7A3)) return true;
-				if(RANGE(0xD7B0,0xD7C6)) return true;
-				if(RANGE(0xD7CB,0xD7FB)) return true;
-			}
-		}
-		else
-		{
-			if(character < 0xFE00)
-			{
-				if(RANGE(0xF900,0xFA2D)) return true;
-				if(RANGE(0xFA2E,0xFA2F)) return true;
-				if(RANGE(0xFA30,0xFA6D)) return true;
-				if(RANGE(0xFA6E,0xFA6F)) return true;
-				if(RANGE(0xFA70,0xFAD9)) return true;
-				if(RANGE(0xFADA,0xFAFF)) return true;
-			}
-			else
-			{
-				if(RANGE(0xFE10,0xFE19)) return true;
-				if(RANGE(0xFE30,0xFE52)) return true;
-				if(RANGE(0xFE54,0xFE66)) return true;
-				if(RANGE(0xFE68,0xFE6B)) return true;
-				if(RANGE(0xFF01,0xFF60)) return true;
-				if(RANGE(0xFFE0,0xFFE6)) return true;
-			}
-		}
-	}
-#if 0
-	// these ranges are on pages > the win32 wchar_t range,
-	// no point enabling them since chars > 0xFFFF won't be recognized by my code.
-	if(RANGE(0x1B000,0x1B001)) return true;
-	if(RANGE(0x1F200,0x1F202)) return true;
-	if(RANGE(0x1F210,0x1F23A)) return true;
-	if(RANGE(0x1F240,0x1F248)) return true;
-	if(RANGE(0x1F250,0x1F251)) return true;
-	if(RANGE(0x20000,0x2A6D6)) return true;
-	if(RANGE(0x2A6D7,0x2A6FF)) return true;
-	if(RANGE(0x2A700,0x2B734)) return true;
-	if(RANGE(0x2B735,0x2F73F)) return true;
-	if(RANGE(0x2B740,0x2B81D)) return true;
-	if(RANGE(0x2B81E,0x2F7FF)) return true;
-	if(RANGE(0x2F800,0x2FA1D)) return true;
-	if(RANGE(0x2FA1E,0x2FFFD)) return true;
-	if(RANGE(0x30000,0x3FFFD)) return true;
-#endif
-	// default to no
-	return false;
-}
-
-static void ConLibRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* text, int nchars)
+static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* text, int nchars)
 {
 	TextOut(hdc,x * handle->characterWidth, y*handle->characterHeight, text, nchars);
 }
 
-static void ConLibUpdateScrollBars(ConLibHandle handle)
+static void clUpdateScrollBars(ConLibHandle handle)
 {
 	HWND hwnd = handle->windowHandle;
 
@@ -250,7 +108,7 @@ static void ConLibUpdateScrollBars(ConLibHandle handle)
 	}
 }
 
-static void ConLibScrollBufferDown(ConLibHandle handle)
+static void clScrollBufferDown(ConLibHandle handle)
 {
 	int* firstCRow = handle->characterRows[0];
 	int* firstARow = handle->attributeRows[0];
@@ -269,13 +127,13 @@ static void ConLibScrollBufferDown(ConLibHandle handle)
 	}
 }
 
-static void ConLibMoveDown(ConLibHandle handle)
+static void clMoveDown(ConLibHandle handle)
 {
 	handle->cursorY++;
 	if(handle->cursorY>=handle->bufferHeight)
 	{
 		handle->cursorY--;
-		ConLibScrollBufferDown(handle);
+		clScrollBufferDown(handle);
 
 		handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight;
 		SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
@@ -296,7 +154,7 @@ static void ConLibMoveDown(ConLibHandle handle)
 
 		handle->scrollOffsetY = handle->cursorY;
 		//SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
-		ConLibUpdateScrollBars(handle);
+		clUpdateScrollBars(handle);
 	}
 
 	if(YScrolled >= handle->windowHeight)
@@ -310,24 +168,24 @@ static void ConLibMoveDown(ConLibHandle handle)
 
 		handle->scrollOffsetY = handle->cursorY - handle->windowHeight + 1;
 		//SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
-		ConLibUpdateScrollBars(handle);
+		clUpdateScrollBars(handle);
 	}
 
 	if(handle->scrollOffsetY<0)
 		handle->scrollOffsetY=0;
 }
 
-static void ConLibMoveNext(ConLibHandle handle)
+static void clMoveNext(ConLibHandle handle)
 {
 	handle->cursorX++;
 	if(handle->cursorX>=handle->bufferWidth)
 	{
 		handle->cursorX=0;
-		ConLibMoveDown(handle);
+		clMoveDown(handle);
 	}
 }
 
-static void ConLibPutChar(ConLibHandle handle, wchar_t chr)
+static void clPutChar(ConLibHandle handle, wchar_t chr)
 {
 	int* cRow = handle->characterRows[handle->cursorY];
 	int* aRow = handle->attributeRows[handle->cursorY];
@@ -337,15 +195,15 @@ static void ConLibPutChar(ConLibHandle handle, wchar_t chr)
 		switch(chr)
 		{
 		case 10:
-			ConLibMoveDown(handle);
+			clMoveDown(handle);
 			break;
 		case 13:
 			handle->cursorX=0;
 			break;
 		case 9:
-			ConLibMoveNext(handle);
+			clMoveNext(handle);
 			while( (handle->cursorX% TAB_SIZE)!= 0)
-				ConLibMoveNext(handle);
+				clMoveNext(handle);
 		}
 	}
 	else
@@ -362,19 +220,19 @@ static void ConLibPutChar(ConLibHandle handle, wchar_t chr)
 
 		InvalidateRect(handle->windowHandle,&r,FALSE);
 
-		ConLibMoveNext(handle);
+		clMoveNext(handle);
 	}
 }
 
-static int ConLibInternalWrite(ConLibHandle handle, const wchar_t* data, int characters)
+static int clInternalWrite(ConLibHandle handle, const wchar_t* data, int characters)
 {
 	int chars=characters;
 	for(int chars=characters;chars>0;chars--)
 	{
 		wchar_t ch = *data++;
-		ConLibPutChar(handle, ch);
+		clPutChar(handle, ch);
 		if(IsFullWidth(ch))
-			ConLibPutChar(handle, FULLWIDTH_NOSPACE_FILLER);
+			clPutChar(handle, FULLWIDTH_NOSPACE_FILLER);
 	}
 //	if(characters>0)
 //		InvalidateRect(handle->windowHandle,NULL, FALSE);
@@ -382,7 +240,7 @@ static int ConLibInternalWrite(ConLibHandle handle, const wchar_t* data, int cha
 	return characters;
 }
 
-static int ConLibCopyDataHandler(ConLibHandle handle, COPYDATASTRUCT* cds)
+static int clCopyDataHandler(ConLibHandle handle, COPYDATASTRUCT* cds)
 {
 	if(cds->dwData == CONSOLE_DATA_ANSI)
 	{
@@ -390,16 +248,16 @@ static int ConLibCopyDataHandler(ConLibHandle handle, COPYDATASTRUCT* cds)
 		int nch = MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, (LPCSTR)cds->lpData, cds->cbData, data, cds->cbData*2);
 		data[nch]=0;
 
-		return ConLibInternalWrite(handle,data,nch);
+		return clInternalWrite(handle,data,nch);
 	}
 	else if(cds->dwData == CONSOLE_DATA_UNICODE)
 	{
-		return ConLibInternalWrite(handle,(wchar_t*)cds->lpData,cds->cbData>>1);
+		return clInternalWrite(handle,(wchar_t*)cds->lpData,cds->cbData>>1);
 	}
 	return -1;
 }
 
-static void ConLibHandleWindowResize(ConLibHandle handle, int& width, int& height)
+static void clHandleWindowResize(ConLibHandle handle, int& width, int& height)
 {
 	int w = width;
 	int h = height;
@@ -424,9 +282,11 @@ static void ConLibHandleWindowResize(ConLibHandle handle, int& width, int& heigh
 	handle->windowWidth = sw;
 	handle->windowHeight = sh;
 
+	if(handle->notificationCallback) 
+		handle->notificationCallback(CONSOLE_NOTIFY_SIZE_CHANGED, sw, sh);
 }
 
-static void ConLibProcessResize(ConLibHandle handle, RECT* r, int wParam)
+static void clProcessResize(ConLibHandle handle, RECT* r, int wParam)
 {
 	//ConLibUpdateScrollBars(handle);
 
@@ -448,8 +308,8 @@ static void ConLibProcessResize(ConLibHandle handle, RECT* r, int wParam)
 	bool hadHS = (handle->windowWidth == handle->bufferWidth);
 	//bool hadVS = (handle->windowHeight == handle->windowHeight);
 
-	ConLibHandleWindowResize(handle, width, height);
-	ConLibUpdateScrollBars(handle);
+	clHandleWindowResize(handle, width, height);
+	clUpdateScrollBars(handle);
 
 	bool newHS = (handle->windowWidth == handle->bufferWidth);
 	//bool newVS = (handle->windowHeight == handle->windowHeight);
@@ -459,7 +319,7 @@ static void ConLibProcessResize(ConLibHandle handle, RECT* r, int wParam)
 		height += yhscroll;
 		yborder -= yhscroll; // compensate border differences
 
-		ConLibHandleWindowResize(handle, width, height);
+		clHandleWindowResize(handle, width, height);
 	}
 
 	if(!hadHS && newHS) // added a scrollbar
@@ -467,7 +327,7 @@ static void ConLibProcessResize(ConLibHandle handle, RECT* r, int wParam)
 		height -= handle->characterHeight * (yhscroll / handle->characterHeight); 
 		yborder += yhscroll; // compensate border differences
 
-		ConLibHandleWindowResize(handle, width, height);
+		clHandleWindowResize(handle, width, height);
 	}
 
 	width += xborder;
@@ -493,7 +353,7 @@ static void ConLibProcessResize(ConLibHandle handle, RECT* r, int wParam)
 
 }
 
-static void ConLibRepaintSelection(ConLibHandle handle, int sx, int sy, int ex, int ey)
+static void clRepaintArea(ConLibHandle handle, int sx, int sy, int ex, int ey)
 {
 	RECT r;
 	
@@ -505,7 +365,7 @@ static void ConLibRepaintSelection(ConLibHandle handle, int sx, int sy, int ex, 
 	InvalidateRect(handle->windowHandle,&r,TRUE);
 }
 
-void TimedPostMessage(ConLibHandle handle, int delay, HWND hwnd, int msg, WPARAM wParam, LPARAM lParam)
+void clTimedPostMessage(ConLibHandle handle, int delay, HWND hwnd, int msg, WPARAM wParam, LPARAM lParam)
 {
 	messageToPost.hwnd = hwnd;
 	messageToPost.message = msg;
@@ -517,9 +377,48 @@ void TimedPostMessage(ConLibHandle handle, int delay, HWND hwnd, int msg, WPARAM
 	SetTimer(hwnd,handle->idThread,500,NULL);
 };
 
+// PRE: x1,x2,y1,y2 need to be in range of the buffer
+static void clClearRect(ConLibHandle handle, int x1, int x2, int y1, int y2)
+{
+	int attr = handle->defaultAttribute.all;
+	for(int y=y1;y<y2;y++)
+	{	
+		int* crow = handle->characterRows[y];
+		int* arow = handle->attributeRows[y];
+		for(int x=x1;x<x2;x++)
+		{
+			crow[x]=0x20; // space
+			arow[x]=attr;
+		}
+	}
 
-static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
-								WPARAM wParam, LPARAM lParam)
+	clRepaintArea(handle, x1, y1, x2, y2);
+}
+
+static void clClearArea(ConLibHandle handle, int mode) 
+{
+	int firstLine=0;
+	int lastLine=0;
+	switch(mode)
+	{
+	case 0: // buffer
+		firstLine = 0;
+		lastLine = handle->bufferHeight;
+		break;
+	case 1: // visible
+		firstLine = handle->scrollOffsetY;
+		lastLine = firstLine + handle->windowHeight;
+		break;
+	case 2: // current line
+		firstLine = handle->cursorY;
+		lastLine = firstLine+1;
+		break;
+	}
+
+	clClearRect(handle, 0, handle->bufferWidth, firstLine, lastLine);
+}
+
+static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	ConLibHandle handle = (ConLibHandle)GetWindowLongPtr(hwnd, GWL_USERDATA);
 
@@ -537,7 +436,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 			return handle->notificationCallback(CONSOLE_NOTIFY_CLOSE, wParam, lParam);
 		break;
 	case WM_COPYDATA:
-		return ConLibCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
+		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
 
 	case WM_LBUTTONDOWN:
 
@@ -560,7 +459,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 		break;
 
 	case WM_TIMER:
-		return ConLibWndProc(messageToPost.hwnd,messageToPost.message,messageToPost.wParam,messageToPost.lParam);
+		return clWndProc(messageToPost.hwnd,messageToPost.message,messageToPost.wParam,messageToPost.lParam);
 
 	case WM_MOUSEMOVE:
 		KillTimer(hwnd,handle->idThread);
@@ -576,7 +475,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				if(handle->scrollOffsetX < 0)
 					handle->scrollOffsetX = 0;
 				else
-					TimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
 			}
 
 			if(handle->selectionEndX >= (handle->scrollOffsetX+handle->windowWidth))
@@ -586,7 +485,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				if((handle->scrollOffsetX + handle->windowWidth) > handle->bufferWidth)
 					handle->scrollOffsetX = handle->bufferWidth - handle->windowWidth + 1;
 				else
-					TimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
 			}
 
 			if(handle->selectionEndY < handle->scrollOffsetY)
@@ -596,7 +495,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				if(handle->scrollOffsetY < 0)
 					handle->scrollOffsetY = 0;
 				else
-					TimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
 			}
 
 			if(handle->selectionEndY >= (handle->scrollOffsetY+handle->windowHeight))
@@ -606,7 +505,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				if((handle->scrollOffsetY + handle->windowHeight) > handle->bufferHeight)
 					handle->scrollOffsetY = handle->bufferHeight - handle->windowHeight + 1;
 				else
-					TimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
 			}
 
 			InvalidateRect(hwnd,NULL,FALSE);
@@ -791,7 +690,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				break;
 
 			// make sure scrollbar state is updated
-			ConLibUpdateScrollBars(handle);
+			clUpdateScrollBars(handle);
 
 			RECT wr,cr;
 			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
@@ -823,7 +722,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 		{
 			RECT* r = (RECT*)lParam;
 
-			ConLibProcessResize(handle, r, wParam);
+			clProcessResize(handle, r, wParam);
 		}
 
 		break;
@@ -836,9 +735,9 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 
 			if(GetWindowRect(hwnd,&r)==0) break;
 
-			ConLibProcessResize(handle, &r, 0);
+			clProcessResize(handle, &r, 0);
 
-			ConLibUpdateScrollBars(handle);
+			clUpdateScrollBars(handle);
 
 			InvalidateRect(hwnd,NULL,TRUE);
 			UpdateWindow(hwnd);
@@ -966,159 +865,163 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 		}
 		return 0;
 	case WM_PAINT:
-
-		PAINTSTRUCT paint;
-
-		ConLibUpdateScrollBars(handle);
-
-		HDC hdc = BeginPaint(hwnd,&paint);
-
-		if(hdc==NULL)
-			break;
-
-		int l = paint.rcPaint.left/handle->characterWidth;
-		int r = (paint.rcPaint.right+handle->characterWidth-1)/handle->characterWidth;
-
-		int t = paint.rcPaint.top/handle->characterHeight;
-		int b = (paint.rcPaint.bottom+handle->characterHeight-1)/handle->characterHeight;
-
-		if(r > handle->windowWidth)
-			r=handle->windowWidth;
-		if(b > handle->windowHeight)
-			b=handle->windowHeight;
-
-		charAttribute lat=handle->currentAttribute;
-
-		COLORREF bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-		COLORREF fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
-
-		// for sel modes 1 and 2
-		int selStartI = 0;
-		int selEndI   = -1;
-		int selMode   = handle->selectionMode;
-		int bufWidth  = handle->bufferWidth;
-
-		int selStartX = handle->selectionStartX;
-		int selStartY = handle->selectionStartY;
-		int selEndX = handle->selectionEndX;
-		int selEndY = handle->selectionEndY;
-
-		if(selEndX < selStartX) std::swap(selStartX,selEndX);
-		if(selEndY < selStartY) std::swap(selStartY,selEndY);
-
-		switch(selMode)
 		{
-		case 1:
-			selStartI = (selStartY * bufWidth) + selStartX;
-			selEndI   = (selEndY * bufWidth) + selEndX;
-			break;
-		case 2:
-			selStartI = (selStartY * bufWidth);
-			selEndI   = ((selEndY + 1) * bufWidth) - 1;
-			break;
-		}
+			PAINTSTRUCT paint;
 
-		bool lastSelected = false;
+			clUpdateScrollBars(handle);
 
-		SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
+			HDC hdc = BeginPaint(hwnd,&paint);
 
-		SetTextColor(hdc, fColor);
-		SetBkColor(hdc, bColor);
+			if(hdc==NULL)
+				break;
 
-		wchar_t* temp = new wchar_t[handle->windowWidth+1];
-		for(int y=t;y<b;y++)
-		{
-			int ay = y+handle->scrollOffsetY;
+			int l = paint.rcPaint.left/handle->characterWidth;
+			int r = (paint.rcPaint.right+handle->characterWidth-1)/handle->characterWidth;
 
-			int* cRow = handle->characterRows[ay];
-			int* aRow = handle->attributeRows[ay];
-			int nchars=0;
-			int lastx=l;
+			int t = paint.rcPaint.top/handle->characterHeight;
+			int b = (paint.rcPaint.bottom+handle->characterHeight-1)/handle->characterHeight;
 
-			for(int x=l;x<r;x++)
+			if(r > handle->windowWidth)
+				r=handle->windowWidth;
+			if(b > handle->windowHeight)
+				b=handle->windowHeight;
+
+			charAttribute lat=handle->currentAttribute;
+
+			COLORREF bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
+			COLORREF fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+
+			// for sel modes 1 and 2
+			int selStartI = 0;
+			int selEndI   = -1;
+			int selMode   = handle->selectionMode;
+			int bufWidth  = handle->bufferWidth;
+
+			int selStartX = handle->selectionStartX;
+			int selStartY = handle->selectionStartY;
+			int selEndX = handle->selectionEndX;
+			int selEndY = handle->selectionEndY;
+
+			if(selEndX < selStartX) std::swap(selStartX,selEndX);
+			if(selEndY < selStartY) std::swap(selStartY,selEndY);
+
+			switch(selMode)
 			{
-				bool isSelected = false;
-				charAttribute at;
+			case 1:
+				selStartI = (selStartY * bufWidth) + selStartX;
+				selEndI   = (selEndY * bufWidth) + selEndX;
+				break;
+			case 2:
+				selStartI = (selStartY * bufWidth);
+				selEndI   = ((selEndY + 1) * bufWidth) - 1;
+				break;
+			}
 
-				int ax = x+handle->scrollOffsetX;
+			bool lastSelected = false;
 
-				at.all = aRow[ax];
+			SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
 
-				if(selMode==1)
-				{
-					int cI = (ay * bufWidth) + ax;
-					isSelected = (cI>=selStartI) && (cI<=selEndI);
-				}
-				else if(selMode==2)
-				{
-					isSelected = (ay >= selStartY) && (ay <= selEndY);
-				}
-				else if(selMode==3)
-				{
-					isSelected = (ay >= selStartY) && (ay <= selEndY) && (ax >= selStartX) && (ax <= selEndX);
-				}
+			SetTextColor(hdc, fColor);
+			SetBkColor(hdc, bColor);
 
-				if((at.all != lat.all) || (lastSelected != isSelected))
+			wchar_t* temp = new wchar_t[handle->windowWidth+1];
+			for(int y=t;y<b;y++)
+			{
+				int ay = y+handle->scrollOffsetY;
+
+				int* cRow = handle->characterRows[ay];
+				int* aRow = handle->attributeRows[ay];
+				int nchars=0;
+				int lastx=l;
+
+				for(int x=l;x<r;x++)
 				{
-					temp[nchars]=0;
-					if(nchars>0)
+					bool isSelected = false;
+					charAttribute at;
+
+					int ax = x+handle->scrollOffsetX;
+
+					at.all = aRow[ax];
+
+					if(selMode==1)
 					{
-						ConLibRepaintText(handle, hdc, lastx, y, temp, nchars);
+						int cI = (ay * bufWidth) + ax;
+						isSelected = (cI>=selStartI) && (cI<=selEndI);
 					}
-					nchars=0;
-					lastx=x;
-
-					if(isSelected)
+					else if(selMode==2)
 					{
-						int t = lat.bgColorB + lat.bgColorG + lat.bgColorR;
+						isSelected = (ay >= selStartY) && (ay <= selEndY);
+					}
+					else if(selMode==3)
+					{
+						isSelected = (ay >= selStartY) && (ay <= selEndY) && (ax >= selStartX) && (ax <= selEndX);
+					}
 
-						if(t > 48)
+					if((at.all != lat.all) || (lastSelected != isSelected))
+					{
+						temp[nchars]=0;
+						if(nchars>0)
 						{
-							fColor = 0x00ffffff;
-							bColor = 0x00000000;
+							clRepaintText(handle, hdc, lastx, y, temp, nchars);
+						}
+						nchars=0;
+						lastx=x;
+
+						if(isSelected)
+						{
+							int t = lat.bgColorB + lat.bgColorG + lat.bgColorR;
+
+							if(t > 48)
+							{
+								fColor = 0x00ffffff;
+								bColor = 0x00000000;
+							}
+							else
+							{
+								bColor = 0x00ffffff;
+								fColor = 0x00000000;
+							}
 						}
 						else
 						{
-							bColor = 0x00ffffff;
-							fColor = 0x00000000;
+							bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
+							fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
 						}
+						SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
+						SetTextColor(hdc, fColor);
+						SetBkColor(hdc, bColor);
 					}
-					else
-					{
-						bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
-						fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
-					}
-					SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
-					SetTextColor(hdc, fColor);
-					SetBkColor(hdc, bColor);
+					lat=at;
+					lastSelected = isSelected;
+					if((wchar_t)cRow[ax] != FULLWIDTH_NOSPACE_FILLER)
+						temp[nchars++] = (wchar_t)cRow[ax];
 				}
-				lat=at;
-				lastSelected = isSelected;
-				if((wchar_t)cRow[ax] != FULLWIDTH_NOSPACE_FILLER)
-					temp[nchars++] = (wchar_t)cRow[ax];
+				temp[nchars]=0;
+				if(nchars>0)
+				{
+	// 				bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
+	// 				fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+	// 				SetTextColor(hdc, fColor);
+	// 				SetBkColor(hdc, bColor);
+					clRepaintText(handle, hdc, lastx, y, temp, nchars);
+				}
 			}
-			temp[nchars]=0;
-			if(nchars>0)
-			{
-// 				bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-// 				fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
-// 				SetTextColor(hdc, fColor);
-// 				SetBkColor(hdc, bColor);
-				ConLibRepaintText(handle, hdc, lastx, y, temp, nchars);
-			}
+			delete[] temp;
+
+			//SetScrollPos(hwnd,SB_VERT,GetScrollPos(hwnd,SB_VERT),TRUE);
+
+			EndPaint(hwnd,&paint);
 		}
-		delete[] temp;
-
-		//SetScrollPos(hwnd,SB_VERT,GetScrollPos(hwnd,SB_VERT),TRUE);
-
-		EndPaint(hwnd,&paint);
+		break;
+	case CLMSG_CLEAR:
+		clClearArea(handle, lParam);
 		break;
 	}
 
 	return DefWindowProc(hwnd,message,wParam,lParam);
 }
 
-static void ConLibCreateWindow(ConLibHandle handle)
+static void clCreateWindow(ConLibHandle handle)
 {
 	if(!classRegistered)
 	{
@@ -1126,7 +1029,7 @@ static void ConLibCreateWindow(ConLibHandle handle)
 
 		wndclass.cbSize = sizeof(wndclass);
 		wndclass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
-		wndclass.lpfnWndProc = ConLibWndProc;
+		wndclass.lpfnWndProc = clWndProc;
 		wndclass.cbClsExtra = 0;
 		wndclass.cbWndExtra = sizeof(ConLibHandle);
 		wndclass.hInstance = GetModuleHandle(NULL);
@@ -1212,7 +1115,7 @@ static void ConLibCreateWindow(ConLibHandle handle)
 	int width = -1;
 	int height = -1;
 
-	ConLibHandleWindowResize(handle, width, height);
+	clHandleWindowResize(handle, width, height);
 
 	SetWindowPos(window, 0, 0, 0,
 		width + xborder,
@@ -1222,9 +1125,9 @@ static void ConLibCreateWindow(ConLibHandle handle)
 
 }
 
-static DWORD ConLibThreadProc(ConLibHandle handle)
+static DWORD clThreadProc(ConLibHandle handle)
 {
-	ConLibCreateWindow(handle);
+	clCreateWindow(handle);
 
 	handle->windowCreated = true;
 	MSG msg;
@@ -1255,7 +1158,11 @@ static DWORD ConLibThreadProc(ConLibHandle handle)
 	return 0;
 }
 
-ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight)
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight, int defAttr)
 {
 	ConLibHandle handle = new conLibPrivateData;
 
@@ -1289,7 +1196,7 @@ ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int
 	handle->characterRows = new int*[bufferHeight];
 	handle->attributeRows = new int*[bufferHeight];
 
-	int defAttr = CONSOLE_MAKE_ATTRIBUTE(0,4,31,4,0,4,0);
+	//int defAttr = CONSOLE_MAKE_ATTRIBUTE(0,4,31,4,0,4,0);
 
 	for(int y=0;y<bufferHeight;y++)
 	{
@@ -1316,7 +1223,7 @@ ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int
 
 	ConLibGotoXY(handle,0,0);
 
-	handle->hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ConLibThreadProc, handle, 0, &handle->idThread);
+	handle->hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)clThreadProc, handle, 0, &handle->idThread);
 
 	while(!handle->windowCreated)
 	{
@@ -1373,7 +1280,16 @@ void CALLBACK ConLibSetControlParameter(ConLibHandle handle, int parameterId, in
 	case CONSOLE_CURRENT_ATTRIBUTE:
 		handle->currentAttribute.all = value;
 		break;
-	case CONSOLE_SCROLL_OFFSET:
+	case CONSOLE_DEFAULT_ATTRIBUTE:
+		handle->defaultAttribute.all = value;
+		break;
+	case CONSOLE_SCROLL_OFFSET_X:
+		if(value<0)	value=0;
+		if(value>(handle->bufferWidth-handle->windowWidth))
+			value=(handle->bufferWidth-handle->windowWidth);
+		handle->scrollOffsetX = value;
+		break;
+	case CONSOLE_SCROLL_OFFSET_Y:
 		if(value<0)	value=0;
 		if(value>(handle->bufferHeight-handle->windowHeight))
 			value=(handle->bufferHeight-handle->windowHeight);
@@ -1392,8 +1308,20 @@ int  CALLBACK ConLibGetControlParameter(ConLibHandle handle, int parameterId)
 		return handle->cursorY;
 	case CONSOLE_CURRENT_ATTRIBUTE:
 		return handle->currentAttribute.all;
-	case CONSOLE_SCROLL_OFFSET:
+	case CONSOLE_DEFAULT_ATTRIBUTE:
+		return handle->defaultAttribute.all;
+	case CONSOLE_SCROLL_OFFSET_X:
+		return handle->scrollOffsetX;
+	case CONSOLE_SCROLL_OFFSET_Y:
 		return handle->scrollOffsetY;
+	case CONSOLE_BUFFER_SIZE_X:
+		return handle->bufferWidth;
+	case CONSOLE_BUFFER_SIZE_Y:
+		return handle->bufferHeight;
+	case CONSOLE_WINDOW_SIZE_X:
+		return handle->windowWidth;
+	case CONSOLE_WINDOW_SIZE_Y:
+		return handle->windowHeight;
 	}
 	return -1;
 }
@@ -1467,6 +1395,21 @@ void CALLBACK ConLibSetNotificationCallback(ConLibHandle handle, pConLibNotifica
 	handle->notificationCallback = callback;
 }
 
+void CALLBACK ConLibClearBuffer(ConLibHandle handle)
+{
+	SendMessage(handle->windowHandle, CLMSG_CLEAR, 0, 0);
+}
+
+void CALLBACK ConLibClearVisibleArea(ConLibHandle handle)
+{
+	SendMessage(handle->windowHandle, CLMSG_CLEAR, 0, 1);
+}
+
+void CALLBACK ConLibClearLine(ConLibHandle handle)
+{
+	SendMessage(handle->windowHandle, CLMSG_CLEAR, 0, 2);
+}
+
 BOOL APIENTRY DllMain( HMODULE hModule,
 					  DWORD  ul_reason_for_call,
 					  LPVOID lpReserved
@@ -1482,4 +1425,3 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	}
 	return TRUE;
 }
-
