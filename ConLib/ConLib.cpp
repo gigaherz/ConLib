@@ -808,6 +808,7 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 
 			mmi->ptMaxSize.x = min(cxm,maxx);
 			mmi->ptMaxSize.y = min(cym,maxy);
+			mmi->ptMaxTrackSize = mmi->ptMaxSize;
 		}
 		break;
 
