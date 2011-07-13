@@ -1,12 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConDemo", "ConDemo\ConDemo.vcproj", "{735537F0-329F-49C7-9121-AD724B89FAC5}"
-	ProjectSection(ProjectDependencies) = postProject
-		{8C680DFA-23D6-423C-9290-7649BC5DA99D} = {8C680DFA-23D6-423C-9290-7649BC5DA99D}
-	EndProjectSection
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConDemo", "ConDemo\ConDemo.vcxproj", "{735537F0-329F-49C7-9121-AD724B89FAC5}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConLib", "ConLib\ConLib.vcproj", "{8C680DFA-23D6-423C-9290-7649BC5DA99D}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConLib", "ConLib\ConLib.vcxproj", "{8C680DFA-23D6-423C-9290-7649BC5DA99D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
