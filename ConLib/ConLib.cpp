@@ -1,4 +1,4 @@
-// ConLib - Win32 Replacement ConLib Library
+// ConLib - Win32 Replacement Console Library
 // Copyright (C) 2009  David Quintana Conejero <gigaherz@gmail.com>
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -54,6 +54,7 @@ static bool IsFullWidth(wchar_t character)
 #define RANGE(a,b) ((character >= a) && (character <= b))
 #define SINGLE(a) (character == a)
 #if 0
+	// these ranges are "definately no"
 	if(RANGE(0x0020,0x007E)) return false;
 	if(RANGE(0x00A2,0x00A3)) return false;
 	if(RANGE(0x00A5,0x00A6)) return false;
@@ -161,6 +162,8 @@ static bool IsFullWidth(wchar_t character)
 		}
 	}
 #if 0
+	// these ranges are on pages > the win32 wchar_t range,
+	// no point enabling them since chars > 0xFFFF won't be recognized by my code.
 	if(RANGE(0x1B000,0x1B001)) return true;
 	if(RANGE(0x1F200,0x1F202)) return true;
 	if(RANGE(0x1F210,0x1F23A)) return true;
@@ -176,6 +179,7 @@ static bool IsFullWidth(wchar_t character)
 	if(RANGE(0x2FA1E,0x2FFFD)) return true;
 	if(RANGE(0x30000,0x3FFFD)) return true;
 #endif
+	// default to no
 	return false;
 }
 
@@ -189,13 +193,14 @@ static void ConLibUpdateScrollBars(ConLibHandle handle)
 	HWND hwnd = handle->windowHandle;
 
 	SCROLLINFO si;
+	ZeroMemory(&si, sizeof(si));
 
 	if(handle->windowHeight>=handle->bufferHeight)
 	{
 		handle->scrollOffsetY=0;
 		//ShowScrollBar(hwnd,SB_VERT,FALSE);
-		si.cbSize = sizeof(SCROLLINFO);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_DISABLENOSCROLL;
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS | SIF_DISABLENOSCROLL;
 		si.nMin = 0;
 		si.nMax = 0;
 		si.nPage = 1;
@@ -211,13 +216,13 @@ static void ConLibUpdateScrollBars(ConLibHandle handle)
 
 		//ShowScrollBar(hwnd,SB_VERT,TRUE);
 
-		si.cbSize = sizeof(SCROLLINFO);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
 		si.nMin = 0;
 		si.nMax = handle->bufferHeight-1;
 		si.nPage = handle->windowHeight;
 		si.nPos = handle->scrollOffsetY;
-		si.nTrackPos=0;
+		si.nTrackPos = handle->scrollOffsetY;
 		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
 		EnableScrollBar(hwnd, SB_VERT, ESB_ENABLE_BOTH);
 	}
@@ -234,12 +239,13 @@ static void ConLibUpdateScrollBars(ConLibHandle handle)
 
 		ShowScrollBar(hwnd,SB_HORZ,TRUE);
 
-		si.cbSize = sizeof(SCROLLINFO);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
 		si.nMin = 0;
 		si.nMax = handle->bufferWidth-1;
 		si.nPage = handle->windowWidth;
 		si.nPos = handle->scrollOffsetX;
+		si.nTrackPos = handle->scrollOffsetX;
 		SetScrollInfo(hwnd,SB_HORZ, &si, TRUE);
 	}
 }
@@ -842,14 +848,27 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 
 	case WM_HSCROLL:
 		{
+			int sbValue;
+			int cmd = LOWORD(wParam);
 			SCROLLINFO si;
+			ZeroMemory(&si,sizeof(si));
 			si.cbSize = sizeof(si);
-			si.fMask = SIF_TRACKPOS;
+			si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
+				
 			GetScrollInfo(hwnd, SB_HORZ, &si);
-			int sbValue = si.nTrackPos;
-
-			switch(LOWORD(wParam))
+			
+			sbValue = si.nPos;
+				
+			switch(cmd)
 			{
+			case SB_BOTTOM:
+				sbValue = si.nMax;
+				break;
+
+			case SB_TOP:
+				sbValue = si.nMax;
+				break;
+
 			case SB_LINEDOWN:       //Scrolls one line down.
 				sbValue++;
 				break;
@@ -864,6 +883,11 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 
 			case SB_PAGEUP:         //Scrolls one page up.
 				sbValue -= si.nPage;
+				break;
+
+			case SB_THUMBTRACK:
+			case SB_THUMBPOSITION:
+				sbValue = si.nTrackPos;
 				break;
 			}
 
@@ -880,18 +904,30 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 				InvalidateRect(hwnd,NULL,FALSE);
 			}
 		}
-
+		return 0;
 	case WM_VSCROLL:
-		{
+		{			
+			int sbValue;
+			int cmd = LOWORD(wParam);
 			SCROLLINFO si;
+			ZeroMemory(&si,sizeof(si));
 			si.cbSize = sizeof(si);
-			si.fMask = SIF_TRACKPOS|SIF_PAGE;
+			si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
+
 			GetScrollInfo(hwnd, SB_VERT, &si);
-
-			int sbValue = si.nTrackPos;
-
-			switch(LOWORD(wParam))
+				
+			sbValue = si.nPos;
+				
+			switch(cmd)
 			{
+			case SB_BOTTOM:
+				sbValue = si.nMax;
+				break;
+
+			case SB_TOP:
+				sbValue = si.nMax;
+				break;
+
 			case SB_LINEDOWN:       //Scrolls one line down.
 				sbValue++;
 				break;
@@ -906,6 +942,11 @@ static LRESULT CALLBACK ConLibWndProc(HWND hwnd, UINT message,
 
 			case SB_PAGEUP:         //Scrolls one page up.
 				sbValue -= si.nPage;
+				break;
+
+			case SB_THUMBTRACK:
+			case SB_THUMBPOSITION:
+				sbValue = si.nTrackPos;
 				break;
 			}
 
