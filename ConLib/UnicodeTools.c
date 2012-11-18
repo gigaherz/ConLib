@@ -22,6 +22,9 @@
 #include <windowsx.h>
 #include "UnicodeTools.h"
 
+#define RANGE(a,b) ((character >= a) && (character <= b))
+#define SINGLE(a) (character == a)
+
 bool IsFullWidth(wchar_t character)
 {
    /* Taken from:
@@ -36,8 +39,6 @@ bool IsFullWidth(wchar_t character)
 	* Copyright (c) 1991-2010 Unicode, Inc.
 	* For terms of use, see http://www.unicode.org/terms_of_use.html
 	*/
-#define RANGE(a,b) ((character >= a) && (character <= b))
-#define SINGLE(a) (character == a)
 #if 0
 	// these ranges are "definately no"
 	if(RANGE(0x0020,0x007E)) return false;

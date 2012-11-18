@@ -17,14 +17,23 @@
 #ifndef _CONLIB_H_
 #define _CONLIB_H_
 
+#ifdef __cplusplus 
+extern "C" {
+#endif
+
+#include "cbool.h"
 #include "ConLibCallbacks.h"
 
-#ifdef INTERNAL_DEFINES
-#define EXPORTED(ret) extern "C" ret __declspec(dllexport) __stdcall
+#ifdef CONLIB_INTERNAL_DEFINES
+#define EXPORTED(ret) ret __declspec(dllexport) __stdcall
 #else
-#define EXPORTED(ret) extern "C" ret __declspec(dllimport) __stdcall
-typedef struct conLibPrivateData {}* ConLibHandle;
+#define EXPORTED(ret) ret __declspec(dllimport) __stdcall
+typedef struct conLibPrivateData { int dummy; }* ConLibHandle;
 #endif
+
+typedef void* pvoid;
+
+#define inline __inline
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -106,5 +115,12 @@ EXPORTED(int) ConLibPrintf(ConLibHandle handle, const char* fmt, ...);
 
 EXPORTED(int) ConLibPrintW(ConLibHandle handle, wchar_t* text, int length);
 EXPORTED(int) ConLibWPrintf(ConLibHandle handle, const wchar_t* fmt, ...);
+
+// same as std file numbers, 0=input, 1=output, 2=error/extra
+EXPORTED(pvoid) ConLibSetIOHandle(ConLibHandle handle, int nHandle, pvoid win32FileHandle);
+
+#ifdef __cplusplus 
+}
+#endif
 
 #endif//_CONLIB_H_

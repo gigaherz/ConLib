@@ -14,11 +14,17 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-#pragma once
+#ifndef _CONLIBINTERNAL_H_
+#define _CONLIBINTERNAL_H_
 
+#ifdef __cplusplus 
+extern "C" {
+#endif
+
+#include "cbool.h"
 #include "ConLibCallbacks.h"
 
-union charAttribute {
+typedef union charAttribute_t {
 	struct {
 		int bgColorB : 5;
 		int bgColorG : 5;
@@ -30,7 +36,7 @@ union charAttribute {
 		int bold     : 1;
 	};
 	int all;
-};
+} charAttribute;
 
 typedef struct conLibPrivateData 
 {
@@ -82,6 +88,7 @@ typedef struct conLibPrivateData
 	HWND windowHandle;
 	TCHAR* sWndName;
 
+	HANDLE handles[2];
 
 	HANDLE hThread;
 	DWORD idThread;
@@ -93,5 +100,12 @@ typedef struct conLibPrivateData
 #define CONSOLE_DATA_ANSI 0
 #define CONSOLE_DATA_UNICODE 1
 
-#define INTERNAL_DEFINES
+#define CONLIB_INTERNAL_DEFINES
+
+#ifdef __cplusplus 
+}
+#endif
+
 #include "ConLib.h"
+
+#endif // _CONLIBINTERNAL_H_

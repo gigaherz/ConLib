@@ -133,10 +133,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ConLib.cpp" />
-    <ClCompile Include="UnicodeTools.cpp" />
+    <ClCompile Include="ConLib.c" />
+    <ClCompile Include="UnicodeTools.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cbool.h" />
     <ClInclude Include="ConLib.h" />
     <ClInclude Include="ConLibCallbacks.h" />
     <ClInclude Include="ConLibInternal.h" />

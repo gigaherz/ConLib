@@ -9,7 +9,7 @@
 #endif
 
 #ifndef _WIN32_WINDOWS
-#define _WIN32_WINDOWS 0x0410
+#define _WIN32_WINDOWS 0x0510
 #endif
 
 #ifndef _WIN32_IE

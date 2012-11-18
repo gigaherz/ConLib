@@ -15,10 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConLib.cpp">
+    <ClCompile Include="UnicodeTools.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UnicodeTools.cpp">
+    <ClCompile Include="ConLib.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -36,6 +36,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="UnicodeTools.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cbool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

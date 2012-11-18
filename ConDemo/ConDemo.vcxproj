@@ -127,7 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ConDemo.cpp" />
+    <ClCompile Include="ConDemo.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="targetver.h" />

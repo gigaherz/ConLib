@@ -23,7 +23,7 @@
 
 bool not_closed=true;
 
-int __stdcall notification_callback(int code, INTPTR wParam, UINTPTR lParam)
+int __stdcall notification_callback(int code, intptr_t wParam, uintptr_t lParam)
 {
 	// This is called from the console's update thread so it's NOT safe to do much stuff here!
 	// The ideal usage would be to set an event or similar, which is handled from the main thread.
@@ -37,9 +37,12 @@ int __stdcall notification_callback(int code, INTPTR wParam, UINTPTR lParam)
 
 int main(int argc, char* argv[])
 {
+	int i;
+	ConLibHandle handle;
+
 	printf("Initializing ConLib...\n");
 
-	ConLibHandle handle = ConLibCreateConsole(80, 320, 80, 10);
+	handle = ConLibCreateConsole(80, 320, 80, 10, CONSOLE_MAKE_ATTRIBUTE(0,0,0,0,0,0,0));
 	if(handle == NULL)
 	{
 		printf("Error creating ConLib console!\n");
@@ -47,10 +50,10 @@ int main(int argc, char* argv[])
 	}
 
 	ConLibSetWindowTitle(handle, L"ConLib Demo Console");
-
+	
 	ConLibSetNotificationCallback(handle, notification_callback);
 
-	for(int i=0;i<32;i++)
+	for(i=0;i<32;i++)
 	{
 		ConLibSetControlParameter(handle, CONSOLE_CURRENT_ATTRIBUTE, CONSOLE_MAKE_ATTRIBUTE(i&1,i,31-i,0,31-i,0,i));
 		ConLibPrintf(handle, "\r\nHello console!Hello console!Hello console!Hello console!Hello console!!!");
@@ -59,6 +62,9 @@ int main(int argc, char* argv[])
 	ConLibWPrintf(handle, L"\r\nUnicode crap: \r\n暑\r\nい\r\n日\r\n 汉\r\n语\r\n/\r\n漢\r\n語\r\n");
 	ConLibWPrintf(handle, L"\r\nUnicode crap (2): |暑い日汉语漢語|\r\n");
 	ConLibWPrintf(handle, L"\r\nUnicode crap (2): |..............|\r\n");
+
+	ConLibSetControlParameter(handle, CONSOLE_DEFAULT_ATTRIBUTE, CONSOLE_MAKE_ATTRIBUTE(0,0,0,0,0,31,31));
+	ConLibClearLine(handle);
 
 	while(not_closed)
 	{
