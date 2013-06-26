@@ -102,6 +102,29 @@ typedef struct conLibPrivateData
 
 #define CONLIB_INTERNAL_DEFINES
 
+#define CLMSG_NOOP (WM_USER+0)
+#define CLMSG_CLEAR (WM_USER+1)
+
+#define TAB_SIZE 8
+#define FULLWIDTH_NOSPACE_FILLER 0x2060
+
+extern DWORD clThreadProc(ConLibHandle handle);
+
+extern void clUpdateScrollBars(ConLibHandle handle);
+extern int clInternalWrite(ConLibHandle handle, const wchar_t* data, int characters);
+
+extern void clHandleWindowResize(ConLibHandle handle, int* width, int* height);
+extern void clClearArea(ConLibHandle handle, int mode);
+
+extern void clPaintText(ConLibHandle handle, HWND hwnd);
+
+void __inline swap(int* a, int* b)
+{
+	int t = *a;
+	*a = *b;
+	*b = t;
+}
+
 #ifdef __cplusplus 
 }
 #endif

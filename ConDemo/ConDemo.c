@@ -69,6 +69,7 @@ int main(int argc, char* argv[])
 	while(not_closed)
 	{
 		Sleep(100);
+		//ConLibPrintf(handle, "\r\nHello console!Hello console!Hello console!Hello console!Hello console!!!");
 	}
 
 	ConLibDestroyConsole(handle);

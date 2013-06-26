@@ -133,7 +133,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ConLib.c" />
+    <ClCompile Include="Drawing.c" />
+    <ClCompile Include="Api.cpp" />
+    <ClCompile Include="DllMain.c" />
+    <ClCompile Include="Window.c" />
     <ClCompile Include="UnicodeTools.c" />
   </ItemGroup>
   <ItemGroup>

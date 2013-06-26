@@ -18,7 +18,16 @@
     <ClCompile Include="UnicodeTools.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ConLib.c">
+    <ClCompile Include="DllMain.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Window.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Drawing.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Api.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
