@@ -208,18 +208,10 @@ static void clOnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 	SetWindowLongPtr(hwnd, GWL_USERDATA, (LONG_PTR)lpcs->lpCreateParams);
 }
 
-static int clIsFullWidthStart(ConLibHandle handle, int x, int y)
-{
-	charAttribute attr;
-
-	attr.all = handle->attributeRows[y][x];
-
-	return attr.isFullWidthStart;
-}
-
 static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
 	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
+	int fw = 0;
 
 	SetCapture(hwnd);
 
@@ -231,14 +223,21 @@ static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LP
 
 	handle->selectionStartX = (x / handle->characterWidth)+handle->scrollOffsetX; 
 	handle->selectionStartY = (y / handle->characterHeight)+handle->scrollOffsetY; 
-
-	if(clIsFullWidthStart(handle, handle->selectionStartX, handle->selectionStartY))
+	
+	if(handle->selectionStartX > 0 && (fw=clIsFullWidthStart(handle, handle->selectionStartX-1, handle->selectionStartY)))
 	{
-		handle->selectionEndX++;
+		handle->selectionStartX--;
+		fw = 1;
 	}
 
 	handle->selectionEndX = handle->selectionStartX; 
 	handle->selectionEndY = handle->selectionStartY; 
+
+	if(fw)
+	{
+		handle->selectionEndX++;
+	}
+	
 	handle->mouseLIsPressed = true;
 
 	InvalidateRect(hwnd,NULL,FALSE);

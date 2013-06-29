@@ -148,6 +148,8 @@ extern void clClearArea(ConLibHandle handle, int mode);
 
 extern void clPaintText(ConLibHandle handle, HWND hwnd);
 
+extern int clIsFullWidthStart(ConLibHandle handle, int x, int y);
+
 void __inline swap(int* a, int* b)
 {
 	int t = *a;

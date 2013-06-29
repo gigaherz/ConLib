@@ -34,6 +34,15 @@
 
 extern MSG __declspec(thread) messageToPost;
 
+int clIsFullWidthStart(ConLibHandle handle, int x, int y)
+{
+	charAttribute attr;
+
+	attr.all = handle->attributeRows[y][x];
+
+	return attr.isFullWidthStart;
+}
+
 static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* text, int nchars)
 {
 	TextOut(hdc,x * handle->characterWidth, y*handle->characterHeight, text, nchars);
@@ -298,7 +307,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 		if(b > handle->windowHeight)
 			b=handle->windowHeight;
 
-		lat=handle->currentAttribute;
+		lat.all = 0;
 
 		bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
 		fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
@@ -345,12 +354,20 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 			int* aRow = handle->attributeRows[ay];
 			int nchars=0;
 			int lastx=l;
+			
+			if(l > 0 || handle->scrollOffsetX > 0)
+			{
+				if(clIsFullWidthStart(handle, l+handle->scrollOffsetX-1, ay))
+				{
+					lastx--;
+				}
+			}
 
-			for(x=l;x<r;x++)
+			for(x=lastx;x<r;x++)
 			{
 				bool isSelected = false;
 				charAttribute at;
-
+				
 				int ax = x+handle->scrollOffsetX;
 
 				at.all = aRow[ax];
@@ -399,6 +416,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 						bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
 						fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
 					}
+
 					SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
 					SetTextColor(hdc, fColor);
 					SetBkColor(hdc, bColor);
@@ -413,10 +431,6 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 			temp[nchars]=0;
 			if(nchars>0)
 			{
-	// 				bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-	// 				fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
-	// 				SetTextColor(hdc, fColor);
-	// 				SetBkColor(hdc, bColor);
 				clRepaintText(handle, hdc, lastx, y, temp, nchars);
 			}
 		}
