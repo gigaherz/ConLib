@@ -36,14 +36,10 @@ MSG __declspec(thread) messageToPost;
 
 bool classRegistered=false;
 
-LONG timerNextID=0;
-
-static void clTimedPostMessage(ConLibHandle handle, int delay, HWND hwnd, int msg, WPARAM wParam, LPARAM lParam)
+static void clDelayMouseMove(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-	LONG id = InterlockedExchangeAdd(&timerNextID,1);
-
 	messageToPost.hwnd = hwnd;
-	messageToPost.message = msg;
+	messageToPost.message = WM_MOUSEMOVE;
 	messageToPost.wParam = wParam;
 	messageToPost.lParam = lParam;
 
@@ -224,10 +220,14 @@ static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LP
 	handle->selectionStartX = (x / handle->characterWidth)+handle->scrollOffsetX; 
 	handle->selectionStartY = (y / handle->characterHeight)+handle->scrollOffsetY; 
 	
-	if(handle->selectionStartX > 0 && (fw=clIsFullWidthStart(handle, handle->selectionStartX-1, handle->selectionStartY)))
+	if(handle->selectionStartX > 0)
 	{
-		handle->selectionStartX--;
-		fw = 1;
+		fw=clIsFullWidthStart(handle, handle->selectionStartX-1, handle->selectionStartY);
+		if(fw)
+		{
+			handle->selectionStartX--;
+			fw = 1;
+		}
 	}
 
 	handle->selectionEndX = handle->selectionStartX; 
@@ -266,7 +266,7 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 			if(handle->scrollOffsetX < 0)
 				handle->scrollOffsetX = 0;
 			else
-				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+				clDelayMouseMove(handle, hwnd, wParam, lParam);
 		}
 
 		if(handle->selectionEndX >= (handle->scrollOffsetX+handle->windowWidth))
@@ -276,7 +276,7 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 			if((handle->scrollOffsetX + handle->windowWidth) > handle->bufferWidth)
 				handle->scrollOffsetX = handle->bufferWidth - handle->windowWidth + 1;
 			else
-				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+				clDelayMouseMove(handle, hwnd, wParam, lParam);
 		}
 
 		if(handle->selectionEndY < handle->scrollOffsetY)
@@ -286,7 +286,7 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 			if(handle->scrollOffsetY < 0)
 				handle->scrollOffsetY = 0;
 			else
-				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+				clDelayMouseMove(handle, hwnd, wParam, lParam);
 		}
 
 		if(handle->selectionEndY >= (handle->scrollOffsetY+handle->windowHeight))
@@ -296,14 +296,14 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 			if((handle->scrollOffsetY + handle->windowHeight) > handle->bufferHeight)
 				handle->scrollOffsetY = handle->bufferHeight - handle->windowHeight + 1;
 			else
-				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+				clDelayMouseMove(handle, hwnd, wParam, lParam);
 		}
 
 		InvalidateRect(hwnd,NULL,FALSE);
 	}
 }
 
-static void clOnEndSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static void clOnEndSelection(ConLibHandle handle, HWND hwnd, LPARAM lParam)
 {
 	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
 
@@ -325,7 +325,7 @@ static void clOnEndSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPAR
 	ReleaseCapture();
 }
 
-static void clOnKeyDown(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static void clOnKeyDown(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 {
 	if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
 	{
@@ -350,7 +350,7 @@ static void clOnKeyDown(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lP
 	}
 }
 
-static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 {
 	if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
 	{
@@ -473,28 +473,34 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lPar
 		{
 			if(OpenClipboard(hwnd))
 			{
-				HANDLE hMem;
+				HANDLE hMemUnicode, hMemAnsi;
 
 				EmptyClipboard();
 
-				if(hMem = GlobalAlloc(GMEM_MOVEABLE, (copiedTextLength+1) * sizeof(wchar_t)))
+				hMemUnicode = GlobalAlloc(GMEM_MOVEABLE, (copiedTextLength+1) * sizeof(wchar_t));
+				if(hMemUnicode)
 				{
-					wchar_t* ptr = (wchar_t*)GlobalLock(hMem);
+					wchar_t* ptr = (wchar_t*)GlobalLock(hMemUnicode);
 					CopyMemory(ptr,copiedText,(copiedTextLength+1) * sizeof(wchar_t));
 					ptr[copiedTextLength]=0;
-					GlobalUnlock(hMem);
+					GlobalUnlock(hMemUnicode);
 
-					SetClipboardData(CF_UNICODETEXT,hMem);
+					SetClipboardData(CF_UNICODETEXT, hMemUnicode);
+
+					// SetClipboardData takes care of the memory
 				}
 
-				if(hMem = GlobalAlloc(GMEM_MOVEABLE, copiedTextLength+1))
+				hMemAnsi = GlobalAlloc(GMEM_MOVEABLE, copiedTextLength+1);
+				if(hMemAnsi)
 				{
-					char* ptr = (char*)GlobalLock(hMem);
+					char* ptr = (char*)GlobalLock(hMemAnsi);
 					WideCharToMultiByte(CP_THREAD_ACP,WC_COMPOSITECHECK,copiedText,copiedTextLength,ptr,copiedTextLength+1,NULL,NULL);
 					ptr[copiedTextLength]=0;
-					GlobalUnlock(hMem);
+					GlobalUnlock(hMemAnsi);
 
-					SetClipboardData(CF_TEXT,hMem);
+					SetClipboardData(CF_TEXT, hMemAnsi);
+					
+					// SetClipboardData takes care of the memory
 				}
 
 				CloseClipboard();
@@ -551,7 +557,7 @@ static void clOnResizeInProgress(ConLibHandle handle, HWND hwnd, WPARAM wParam, 
 	}
 }
 
-static void clOnResizeFinished(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static void clOnResizeFinished(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 {	
 	if( (wParam != SIZE_MINIMIZED) && (handle->lastWindowState != wParam))
 	{
@@ -655,25 +661,26 @@ static int clOnScrollbarDelta(HWND hwnd, int which, int delta, int max)
 	return sbValue;
 }
 
-static LRESULT clOnHorizontalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static LRESULT clOnHorizontalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 {
 	handle->scrollOffsetX = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_HORZ, handle->scrollOffsetX, handle->bufferWidth - handle->windowWidth);
 	return 0;
 }
 
-static LRESULT clOnVerticalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+static LRESULT clOnVerticalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 {	
 	handle->scrollOffsetY = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_VERT, handle->scrollOffsetY, handle->bufferHeight - handle->windowHeight);
 	return 0;
 }
 
-static void clOnMouseWheel(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam, int which)
+static void clOnMouseWheel(ConLibHandle handle, HWND hwnd, WPARAM wParam, int which)
 {
 	int fwKeys = GET_KEYSTATE_WPARAM(wParam);
 	int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-	int xPos = GET_X_LPARAM(lParam); 
-	int yPos = GET_Y_LPARAM(lParam); 
 	int max, delta = 0;
+
+	if(fwKeys)
+		return;
 	
 	if(which == SB_VERT) // vertical
 	{
@@ -735,23 +742,23 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		break;
 
 	case WM_LBUTTONUP:
-		clOnEndSelection(handle, hwnd, wParam, lParam);
+		clOnEndSelection(handle, hwnd, lParam);
 		break;
 
 	case WM_KEYDOWN:
-		clOnKeyDown(handle, hwnd, wParam, lParam);
+		clOnKeyDown(handle, hwnd, wParam);
 		break;
 
 	case WM_KEYUP:
-		clOnKeyUp(handle, hwnd, wParam, lParam);
+		clOnKeyUp(handle, hwnd, wParam);
 		break;
 
 	case WM_MOUSEWHEEL:
-		clOnMouseWheel(handle, hwnd, wParam, lParam, SB_VERT);
+		clOnMouseWheel(handle, hwnd, wParam, SB_VERT);
 		return 0;
 		
 	case WM_MOUSEHWHEEL:
-		clOnMouseWheel(handle, hwnd, wParam, lParam, SB_HORZ);
+		clOnMouseWheel(handle, hwnd, wParam, SB_HORZ);
 		return 0;
 
 	case WM_GETMINMAXINFO:
@@ -763,14 +770,14 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		break;
 
 	case WM_SIZE:
-		clOnResizeFinished(handle, hwnd, wParam, lParam);
+		clOnResizeFinished(handle, hwnd, wParam);
 		break;
 
 	case WM_HSCROLL:
-		return clOnHorizontalScroll(handle, hwnd, wParam, lParam);
+		return clOnHorizontalScroll(handle, hwnd, wParam);
 
 	case WM_VSCROLL:
-		return clOnVerticalScroll(handle, hwnd, wParam, lParam);
+		return clOnVerticalScroll(handle, hwnd, wParam);
 		
 	case WM_PAINT:
 		clUpdateScrollBars(handle);
@@ -907,7 +914,7 @@ DWORD clThreadProc(ConLibHandle handle)
 
 	handle->windowCreated = true;
 
-	while(true)
+	for(;;)
 	{
 		MSG msg;
 
@@ -934,7 +941,7 @@ DWORD clThreadProc(ConLibHandle handle)
 			DWORD ret = MsgWaitForMultipleObjectsEx(ARRAYSIZE(handle->handles), handle->handles, INFINITE, QS_ALLINPUT, 0);
 			if(ret >= WAIT_OBJECT_0 && ret < (WAIT_OBJECT_0+ARRAYSIZE(handle->handles)))
 			{
-				int which = ret - WAIT_OBJECT_0;					
+				//int which = ret - WAIT_OBJECT_0;					
 			}
 		}
 	}

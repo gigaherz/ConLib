@@ -44,30 +44,6 @@ typedef union charAttribute_t {
 	unsigned int all;
 } charAttribute;
 
-//typedef union charAttribute_t {
-//	struct {
-//		union {
-//			struct {
-//				unsigned int bgColorB : 5;
-//				unsigned int bgColorG : 5;
-//				unsigned int bgColorR : 5;
-//			};
-//			unsigned int bg : 15;
-//		};
-//		unsigned int isFullWidthStart : 1;
-//		union {
-//			struct {
-//				unsigned int fgColorB : 5;
-//				unsigned int fgColorG : 5;
-//				unsigned int fgColorR : 5;
-//			};
-//			unsigned int fg : 15;
-//		};
-//		unsigned int bold : 1;
-//	};
-//	unsigned int all;
-//} charAttribute;
-
 typedef struct conLibPrivateData 
 {
 	int bufferWidth;
@@ -94,7 +70,7 @@ typedef struct conLibPrivateData
 	int scrollOffsetY;
 	int scrollOffsetX;
 
-	int lastWindowState;
+	UINT lastWindowState;
 
 	bool scrollBarVisibleX;
 	bool scrollBarVisibleY;

@@ -35,7 +35,7 @@ int __stdcall notification_callback(int code, intptr_t wParam, uintptr_t lParam)
 	return 1;
 }
 
-int main(int argc, char* argv[])
+int main()
 {
 	int i;
 	ConLibHandle handle;
