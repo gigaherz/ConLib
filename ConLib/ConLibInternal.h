@@ -26,17 +26,47 @@ extern "C" {
 
 typedef union charAttribute_t {
 	struct {
-		int bgColorB : 5;
-		int bgColorG : 5;
-		int bgColorR : 5;
-		int unused1  : 1;
-		int fgColorB : 5;
-		int fgColorG : 5;
-		int fgColorR : 5;
-		int bold     : 1;
+		unsigned int bgColorB : 5;
+		unsigned int bgColorG : 5;
+		unsigned int bgColorR : 5;
+		unsigned int isFullWidthStart : 1;
+		unsigned int fgColorB : 5;
+		unsigned int fgColorG : 5;
+		unsigned int fgColorR : 5;
+		unsigned int bold : 1;
 	};
-	int all;
+	struct {
+		unsigned int bg : 15;
+		unsigned int : 1;
+		unsigned int fg : 15;
+		unsigned int : 1;
+	};
+	unsigned int all;
 } charAttribute;
+
+//typedef union charAttribute_t {
+//	struct {
+//		union {
+//			struct {
+//				unsigned int bgColorB : 5;
+//				unsigned int bgColorG : 5;
+//				unsigned int bgColorR : 5;
+//			};
+//			unsigned int bg : 15;
+//		};
+//		unsigned int isFullWidthStart : 1;
+//		union {
+//			struct {
+//				unsigned int fgColorB : 5;
+//				unsigned int fgColorG : 5;
+//				unsigned int fgColorR : 5;
+//			};
+//			unsigned int fg : 15;
+//		};
+//		unsigned int bold : 1;
+//	};
+//	unsigned int all;
+//} charAttribute;
 
 typedef struct conLibPrivateData 
 {

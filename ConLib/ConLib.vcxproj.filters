@@ -27,7 +27,7 @@
     <ClCompile Include="Drawing.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Api.cpp">
+    <ClCompile Include="Api.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

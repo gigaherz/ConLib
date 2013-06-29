@@ -45,6 +45,65 @@ static void clTimedPostMessage(ConLibHandle handle, int delay, HWND hwnd, int ms
 	SetTimer(hwnd,handle->idThread,500,NULL);
 };
 
+void clUpdateScrollBars(ConLibHandle handle)
+{
+	HWND hwnd = handle->windowHandle;
+
+	SCROLLINFO si;
+	ZeroMemory(&si, sizeof(si));
+
+	if(handle->windowHeight>=handle->bufferHeight)
+	{
+		handle->scrollOffsetY=0;
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS | SIF_DISABLENOSCROLL;
+		si.nMin = 0;
+		si.nMax = 0;
+		si.nPage = 1;
+		si.nPos = 0;
+		si.nTrackPos=0;
+		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
+	}
+	else
+	{
+		if(handle->scrollOffsetY>=(handle->bufferHeight-handle->windowHeight))
+			handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight-1;
+
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
+		si.nMin = 0;
+		si.nMax = handle->bufferHeight-1;
+		si.nPage = handle->windowHeight;
+		si.nPos = handle->scrollOffsetY;
+		si.nTrackPos = handle->scrollOffsetY;
+		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
+
+		EnableScrollBar(hwnd, SB_VERT, ESB_ENABLE_BOTH);
+	}
+
+	if(handle->windowWidth>=handle->bufferWidth)
+	{
+		handle->scrollOffsetX=0;
+		ShowScrollBar(hwnd,SB_HORZ,FALSE);
+	}
+	else
+	{
+		if(handle->scrollOffsetX>=(handle->bufferWidth-handle->windowWidth))
+			handle->scrollOffsetX = handle->bufferWidth-handle->windowWidth-1;
+
+		ShowScrollBar(hwnd,SB_HORZ,TRUE);
+
+		si.cbSize = sizeof(si);
+		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
+		si.nMin = 0;
+		si.nMax = handle->bufferWidth-1;
+		si.nPage = handle->windowWidth;
+		si.nPos = handle->scrollOffsetX;
+		si.nTrackPos = handle->scrollOffsetX;
+		SetScrollInfo(hwnd,SB_HORZ, &si, TRUE);
+	}
+}
+
 static void clProcessResize(ConLibHandle handle, RECT* r, int wParam)
 {
 	//ConLibUpdateScrollBars(handle);
@@ -139,222 +198,217 @@ static int clCopyDataHandler(ConLibHandle handle, COPYDATASTRUCT* cds)
 	return -1;
 }
 
-static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static void clOnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 {
-	ConLibHandle handle = (ConLibHandle)GetWindowLongPtr(hwnd, GWL_USERDATA);
+	SetWindowLongPtr(hwnd, GWL_USERDATA, (LONG_PTR)lpcs->lpCreateParams);
+}
 
-	switch(message)
+static int clIsFullWidthStart(ConLibHandle handle, int x, int y)
+{
+	charAttribute attr;
+
+	attr.all = handle->attributeRows[y][x];
+
+	return attr.isFullWidthStart;
+}
+
+static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
+
+	SetCapture(hwnd);
+
+	handle->selectionMode = 1;
+	if(wParam&MK_CONTROL)
+		handle->selectionMode = 2;
+	else if(wParam&MK_SHIFT)
+		handle->selectionMode = 3;
+
+	handle->selectionStartX = (x / handle->characterWidth)+handle->scrollOffsetX; 
+	handle->selectionStartY = (y / handle->characterHeight)+handle->scrollOffsetY; 
+
+	if(clIsFullWidthStart(handle, handle->selectionStartX, handle->selectionStartY))
 	{
-	case WM_CREATE:
+		handle->selectionEndX++;
+	}
+
+	handle->selectionEndX = handle->selectionStartX; 
+	handle->selectionEndY = handle->selectionStartY; 
+	handle->mouseLIsPressed = true;
+
+	InvalidateRect(hwnd,NULL,FALSE);
+}
+
+static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
+
+	KillTimer(hwnd,handle->idThread);
+
+	if((handle->selectionMode>0)&&(handle->mouseLIsPressed))
+	{
+		handle->selectionEndX = (x / handle->characterWidth)+handle->scrollOffsetX; 
+		handle->selectionEndY = (y / handle->characterHeight)+handle->scrollOffsetY; 
+		
+		if(clIsFullWidthStart(handle, handle->selectionEndX, handle->selectionEndY))
 		{
-			LPCREATESTRUCT lpcs = (LPCREATESTRUCT)lParam;
-			SetWindowLongPtr(hwnd, GWL_USERDATA, (LONG_PTR)lpcs->lpCreateParams);
+			handle->selectionEndX++;
 		}
-		break;
 
-	case WM_CLOSE:
-		if(handle->notificationCallback) 
-			return handle->notificationCallback(CONSOLE_NOTIFY_CLOSE, wParam, lParam);
-		break;
-	case WM_COPYDATA:
-		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
+		if(handle->selectionEndX < handle->scrollOffsetX)
+		{
+			handle->scrollOffsetX = handle->selectionEndX;
 
-	case WM_LBUTTONDOWN:
+			if(handle->scrollOffsetX < 0)
+				handle->scrollOffsetX = 0;
+			else
+				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+		}
 
-		SetCapture(hwnd);
+		if(handle->selectionEndX >= (handle->scrollOffsetX+handle->windowWidth))
+		{
+			handle->scrollOffsetX = handle->selectionEndX - handle->windowWidth + 1;
 
-		handle->selectionMode = 1;
-		if(wParam&MK_CONTROL)
-			handle->selectionMode = 2;
-		else if(wParam&MK_SHIFT)
-			handle->selectionMode = 3;
+			if((handle->scrollOffsetX + handle->windowWidth) > handle->bufferWidth)
+				handle->scrollOffsetX = handle->bufferWidth - handle->windowWidth + 1;
+			else
+				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+		}
 
-		handle->selectionStartX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
-		handle->selectionStartY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
-		handle->selectionEndX = handle->selectionStartX; 
-		handle->selectionEndY = handle->selectionStartY; 
-		handle->mouseLIsPressed = true;
+		if(handle->selectionEndY < handle->scrollOffsetY)
+		{
+			handle->scrollOffsetY = handle->selectionEndY;
+
+			if(handle->scrollOffsetY < 0)
+				handle->scrollOffsetY = 0;
+			else
+				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+		}
+
+		if(handle->selectionEndY >= (handle->scrollOffsetY+handle->windowHeight))
+		{
+			handle->scrollOffsetY = handle->selectionEndY - handle->windowHeight + 1;
+
+			if((handle->scrollOffsetY + handle->windowHeight) > handle->bufferHeight)
+				handle->scrollOffsetY = handle->bufferHeight - handle->windowHeight + 1;
+			else
+				clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
+		}
 
 		InvalidateRect(hwnd,NULL,FALSE);
+	}
+}
 
-		break;
+static void clOnEndSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
 
-	case WM_TIMER:
-		return clWndProc(messageToPost.hwnd,messageToPost.message,messageToPost.wParam,messageToPost.lParam);
+	if(handle->selectionMode>0)
+	{
+		handle->selectionEndX = (x / handle->characterWidth)+handle->scrollOffsetX; 
+		handle->selectionEndY = (y / handle->characterHeight)+handle->scrollOffsetY; 
 
-	case WM_MOUSEMOVE:
-		KillTimer(hwnd,handle->idThread);
-		if((handle->selectionMode>0)&&(handle->mouseLIsPressed))
+		if(clIsFullWidthStart(handle, handle->selectionEndX, handle->selectionEndY))
 		{
-			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
-			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
-
-			if(handle->selectionEndX < handle->scrollOffsetX)
-			{
-				handle->scrollOffsetX = handle->selectionEndX;
-
-				if(handle->scrollOffsetX < 0)
-					handle->scrollOffsetX = 0;
-				else
-					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
-			}
-
-			if(handle->selectionEndX >= (handle->scrollOffsetX+handle->windowWidth))
-			{
-				handle->scrollOffsetX = handle->selectionEndX - handle->windowWidth + 1;
-
-				if((handle->scrollOffsetX + handle->windowWidth) > handle->bufferWidth)
-					handle->scrollOffsetX = handle->bufferWidth - handle->windowWidth + 1;
-				else
-					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
-			}
-
-			if(handle->selectionEndY < handle->scrollOffsetY)
-			{
-				handle->scrollOffsetY = handle->selectionEndY;
-
-				if(handle->scrollOffsetY < 0)
-					handle->scrollOffsetY = 0;
-				else
-					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
-			}
-
-			if(handle->selectionEndY >= (handle->scrollOffsetY+handle->windowHeight))
-			{
-				handle->scrollOffsetY = handle->selectionEndY - handle->windowHeight + 1;
-
-				if((handle->scrollOffsetY + handle->windowHeight) > handle->bufferHeight)
-					handle->scrollOffsetY = handle->bufferHeight - handle->windowHeight + 1;
-				else
-					clTimedPostMessage(handle, 200, hwnd, WM_MOUSEMOVE, wParam,lParam);
-			}
-
-			InvalidateRect(hwnd,NULL,FALSE);
+			handle->selectionEndX++;
 		}
 
-		break;
+		InvalidateRect(hwnd,NULL,FALSE);
+	}
+	handle->mouseLIsPressed = false;
 
-	case WM_LBUTTONUP:
+	KillTimer(hwnd,handle->idThread);
+	ReleaseCapture();
+}
 
+static void clOnKeyDown(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
+	{
+		if(wParam == VK_CONTROL)
+		{
+			handle->ctrlIsPressed = true;
+			handle->selectionMode = 2;
+		}
+		else if(wParam == VK_SHIFT)
+		{
+			handle->shiftIsPressed = true;
+			handle->selectionMode = 3;
+		}
+		InvalidateRect(hwnd,NULL,FALSE);
+	}
+	else
+	{
+		if(wParam == VK_CONTROL)
+			handle->ctrlIsPressed = true;
+		else if(wParam == VK_SHIFT)
+			handle->shiftIsPressed = true;
+	}
+}
+
+static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
+	{
+		if(wParam == VK_CONTROL)
+		{
+			handle->ctrlIsPressed = false;
+			handle->selectionMode = 1;
+
+			if(handle->shiftIsPressed)
+				handle->selectionMode = 3;
+		}
+		else if(wParam == VK_SHIFT)
+		{
+			handle->shiftIsPressed = false;
+			handle->selectionMode = 1;
+
+			if(handle->ctrlIsPressed)
+				handle->selectionMode = 2;
+		}
+		InvalidateRect(hwnd,NULL,FALSE);
+	}
+	else
+	{
+		if(wParam == VK_CONTROL)
+			handle->ctrlIsPressed = false;
+		else if(wParam == VK_SHIFT)
+			handle->shiftIsPressed = false;
+	}
+
+	if(wParam == VK_ESCAPE)
+	{
 		if(handle->selectionMode>0)
 		{
-			handle->selectionEndX = (GET_X_LPARAM(lParam) / handle->characterWidth)+handle->scrollOffsetX; 
-			handle->selectionEndY = (GET_Y_LPARAM(lParam) / handle->characterHeight)+handle->scrollOffsetY; 
+			handle->selectionMode = false;
 			InvalidateRect(hwnd,NULL,FALSE);
 		}
-		handle->mouseLIsPressed = false;
+	}
 
-		KillTimer(hwnd,handle->idThread);
-		ReleaseCapture();
-		break;
+	if((wParam == 'C') && (handle->ctrlIsPressed) && (handle->selectionMode > 0))
+	{
+		int x, y;
 
-	case WM_KEYDOWN:
+		wchar_t* copiedText = (wchar_t*)malloc(sizeof(wchar_t) * handle->bufferWidth * (handle->selectionEndY - handle->selectionStartY + 1));
+		int copiedTextLength = 0;
 
-		if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
+		switch(handle->selectionMode)
 		{
-			if(wParam == VK_CONTROL)
+		case 1: // inline
 			{
-				handle->ctrlIsPressed = true;
-				handle->selectionMode = 2;
-			}
-			else if(wParam == VK_SHIFT)
-			{
-				handle->shiftIsPressed = true;
-				handle->selectionMode = 3;
-			}
-			InvalidateRect(hwnd,NULL,FALSE);
-		}
-		else
-		{
-			if(wParam == VK_CONTROL)
-				handle->ctrlIsPressed = true;
-			else if(wParam == VK_SHIFT)
-				handle->shiftIsPressed = true;
-		}
-		break;
-
-	case WM_KEYUP:
-
-		if((handle->mouseLIsPressed)&&(handle->selectionMode > 0))
-		{
-			if(wParam == VK_CONTROL)
-			{
-				handle->ctrlIsPressed = false;
-				handle->selectionMode = 1;
-
-				if(handle->shiftIsPressed)
-					handle->selectionMode = 3;
-			}
-			else if(wParam == VK_SHIFT)
-			{
-				handle->shiftIsPressed = false;
-				handle->selectionMode = 1;
-
-				if(handle->ctrlIsPressed)
-					handle->selectionMode = 2;
-			}
-			InvalidateRect(hwnd,NULL,FALSE);
-		}
-		else
-		{
-			if(wParam == VK_CONTROL)
-				handle->ctrlIsPressed = false;
-			else if(wParam == VK_SHIFT)
-				handle->shiftIsPressed = false;
-		}
-
-		if(wParam == VK_ESCAPE)
-		{
-			if(handle->selectionMode>0)
-			{
-				handle->selectionMode = false;
-				InvalidateRect(hwnd,NULL,FALSE);
-			}
-		}
-
-		if((wParam == 'C') && (handle->ctrlIsPressed) && (handle->selectionMode > 0))
-		{
-			int x, y;
-
-			wchar_t* copiedText = (wchar_t*)malloc(sizeof(wchar_t) * handle->bufferWidth * (handle->selectionEndY - handle->selectionStartY + 1));
-			int copiedTextLength = 0;
-
-			switch(handle->selectionMode)
-			{
-			case 1: // inline
+				charAttribute prevAttr;
+				prevAttr.all = 0;
+				for(x=handle->selectionStartX;x<handle->bufferWidth;x++)
 				{
-					for(x=handle->selectionStartX;x<handle->bufferWidth;x++)
-					{
+					if(!prevAttr.isFullWidthStart)
 						copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[handle->selectionStartY][x]);
-					}
-					if (handle->selectionStartY < handle->selectionEndY)
-					{
-						copiedText[copiedTextLength++] = L'\r';
-						copiedText[copiedTextLength++] = L'\n';
-						for(y=handle->selectionStartY+1;y<handle->selectionEndY;y++)
-						{
-							for(x=0;x<handle->bufferWidth;x++)
-							{
-								copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
-							}
-							copiedText[copiedTextLength++] = L'\r';
-							copiedText[copiedTextLength++] = L'\n';
-						}
-						for(x=0;x<=handle->selectionEndX;x++)
-						{
-							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[handle->selectionEndY][x]);
-						}
-						if(handle->selectionEndX+1 == handle->bufferWidth)
-						{
-							copiedText[copiedTextLength++] = L'\r';
-							copiedText[copiedTextLength++] = L'\n';
-						}
-					}
+					prevAttr.all = (handle->attributeRows[handle->selectionStartY][x]);
 				}
-				break;
-			case 2: // whole lines
+				if (handle->selectionStartY < handle->selectionEndY)
 				{
-					for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
+					copiedText[copiedTextLength++] = L'\r';
+					copiedText[copiedTextLength++] = L'\n';
+					for(y=handle->selectionStartY+1;y<handle->selectionEndY;y++)
 					{
 						for(x=0;x<handle->bufferWidth;x++)
 						{
@@ -363,252 +417,291 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 						copiedText[copiedTextLength++] = L'\r';
 						copiedText[copiedTextLength++] = L'\n';
 					}
-				}
-				break;
-			case 3: // rectangle
-				{
-					for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
+					for(x=0;x<=handle->selectionEndX;x++)
 					{
-						for(x=handle->selectionStartY;x<=handle->selectionEndY;x++)
-						{
-							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
-						}
+						copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[handle->selectionEndY][x]);
+					}
+					if(handle->selectionEndX+1 == handle->bufferWidth)
+					{
 						copiedText[copiedTextLength++] = L'\r';
 						copiedText[copiedTextLength++] = L'\n';
 					}
 				}
-				break;
 			}
-
-			if(copiedTextLength > 0)
+			break;
+		case 2: // whole lines
 			{
-				if(OpenClipboard(hwnd))
+				for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
 				{
-					HANDLE hMem;
-
-					EmptyClipboard();
-
-					if(hMem = GlobalAlloc(GMEM_MOVEABLE, (copiedTextLength+1) * sizeof(wchar_t)))
+					charAttribute prevAttr;
+					prevAttr.all = 0;
+					for(x=0;x<handle->bufferWidth;x++)
 					{
-						wchar_t* ptr = (wchar_t*)GlobalLock(hMem);
-						CopyMemory(ptr,copiedText,(copiedTextLength+1) * sizeof(wchar_t));
-						ptr[copiedTextLength]=0;
-						GlobalUnlock(hMem);
-
-						SetClipboardData(CF_UNICODETEXT,hMem);
+						if(!prevAttr.isFullWidthStart)
+							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
+						prevAttr.all = (handle->attributeRows[y][x]);
 					}
-
-					if(hMem = GlobalAlloc(GMEM_MOVEABLE, copiedTextLength+1))
-					{
-						char* ptr = (char*)GlobalLock(hMem);
-						WideCharToMultiByte(CP_THREAD_ACP,WC_COMPOSITECHECK,copiedText,copiedTextLength,ptr,copiedTextLength+1,NULL,NULL);
-						ptr[copiedTextLength]=0;
-						GlobalUnlock(hMem);
-
-						SetClipboardData(CF_TEXT,hMem);
-					}
-
-					CloseClipboard();
+					copiedText[copiedTextLength++] = L'\r';
+					copiedText[copiedTextLength++] = L'\n';
 				}
 			}
-
-			handle->selectionMode = false;
-			InvalidateRect(hwnd,NULL,FALSE);
+			break;
+		case 3: // rectangle
+			{
+				for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
+				{
+					charAttribute prevAttr;
+					prevAttr.all = 0;
+					for(x=handle->selectionStartX;x<=handle->selectionEndX;x++)
+					{
+						if(!prevAttr.isFullWidthStart)
+							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
+						prevAttr.all = (handle->attributeRows[y][x]);
+					}
+					copiedText[copiedTextLength++] = L'\r';
+					copiedText[copiedTextLength++] = L'\n';
+				}
+			}
+			break;
 		}
 
-		break;
-	case WM_GETMINMAXINFO:
+		if(copiedTextLength > 0)
 		{
-			RECT wr,cr;
+			if(OpenClipboard(hwnd))
+			{
+				HANDLE hMem;
 
-			int xborder, yborder, maxx, maxy, cxm, cym;
+				EmptyClipboard();
 
-			MINMAXINFO *mmi=(MINMAXINFO*)lParam;
+				if(hMem = GlobalAlloc(GMEM_MOVEABLE, (copiedTextLength+1) * sizeof(wchar_t)))
+				{
+					wchar_t* ptr = (wchar_t*)GlobalLock(hMem);
+					CopyMemory(ptr,copiedText,(copiedTextLength+1) * sizeof(wchar_t));
+					ptr[copiedTextLength]=0;
+					GlobalUnlock(hMem);
 
-			if(!handle)
-				break;
+					SetClipboardData(CF_UNICODETEXT,hMem);
+				}
 
-			// make sure scrollbar state is updated
-			clUpdateScrollBars(handle);
+				if(hMem = GlobalAlloc(GMEM_MOVEABLE, copiedTextLength+1))
+				{
+					char* ptr = (char*)GlobalLock(hMem);
+					WideCharToMultiByte(CP_THREAD_ACP,WC_COMPOSITECHECK,copiedText,copiedTextLength,ptr,copiedTextLength+1,NULL,NULL);
+					ptr[copiedTextLength]=0;
+					GlobalUnlock(hMem);
 
-			if(GetWindowRect(handle->windowHandle,&wr)==0) break;
-			if(GetClientRect(handle->windowHandle,&cr)==0) break;
+					SetClipboardData(CF_TEXT,hMem);
+				}
 
-			xborder = (wr.right - wr.left) - (cr.right - cr.left);
-			yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
-
-			maxx = xborder + (handle->bufferWidth * handle->characterWidth);
-			maxy = yborder + (handle->bufferHeight * handle->characterHeight);
-
-			cxm = handle->characterWidth * (GetSystemMetrics(SM_CXMAXIMIZED)/handle->characterWidth);
-			cym = handle->characterHeight * (GetSystemMetrics(SM_CYMAXIMIZED)/handle->characterHeight);
-
-			mmi->ptMaxSize.x = min(cxm,maxx);
-			mmi->ptMaxSize.y = min(cym,maxy);
-			mmi->ptMaxTrackSize = mmi->ptMaxSize;
+				CloseClipboard();
+			}
 		}
+
+		handle->selectionMode = false;
+		InvalidateRect(hwnd,NULL,FALSE);
+	}
+
+}
+
+static void clOnGetMinMaxInfo(ConLibHandle handle, MINMAXINFO *mmi)
+{
+	RECT wr,cr;
+
+	int xborder, yborder, maxx, maxy, cxm, cym;
+
+	if(!handle)
+		return;
+
+	// make sure scrollbar state is updated
+	clUpdateScrollBars(handle);
+
+	if(GetWindowRect(handle->windowHandle,&wr)==0) return;
+	if(GetClientRect(handle->windowHandle,&cr)==0) return;
+
+	xborder = (wr.right - wr.left) - (cr.right - cr.left);
+	yborder = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+
+	maxx = xborder + (handle->bufferWidth * handle->characterWidth);
+	maxy = yborder + (handle->bufferHeight * handle->characterHeight);
+
+	cxm = handle->characterWidth * (GetSystemMetrics(SM_CXMAXIMIZED)/handle->characterWidth);
+	cym = handle->characterHeight * (GetSystemMetrics(SM_CYMAXIMIZED)/handle->characterHeight);
+
+	mmi->ptMaxSize.x = min(cxm,maxx);
+	mmi->ptMaxSize.y = min(cym,maxy);
+	mmi->ptMaxTrackSize = mmi->ptMaxSize;
+}
+
+static void clOnResizeInProgress(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	if(handle->lastWindowState != wParam)
+		InvalidateRect(hwnd,NULL,TRUE);
+
+	handle->lastWindowState = (int)wParam;
+
+	if(wParam != SIZE_MINIMIZED)
+	{
+		RECT* r = (RECT*)lParam;
+
+		clProcessResize(handle, r, wParam);
+	}
+}
+
+static void clOnResizeFinished(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{	
+	if( (wParam != SIZE_MINIMIZED) && (handle->lastWindowState != wParam))
+	{
+		RECT r;
+
+		if(GetWindowRect(hwnd,&r)==0) return;
+
+		clProcessResize(handle, &r, 0);
+
+		clUpdateScrollBars(handle);
+
+		InvalidateRect(hwnd,NULL,TRUE);
+		UpdateWindow(hwnd);
+	}
+
+	handle->lastWindowState = (int)wParam;
+}
+
+static int clOnScrollbarUpdate(HWND hwnd, int cmd, int which, int current, int max)
+{
+	int sbValue;
+
+	SCROLLINFO si;
+	ZeroMemory(&si,sizeof(si));
+	si.cbSize = sizeof(si);
+	si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
+
+	GetScrollInfo(hwnd, which, &si);
+				
+	sbValue = si.nPos;
+				
+	switch(cmd)
+	{
+	case SB_BOTTOM:
+		sbValue = si.nMax;
+		break;
+
+	case SB_TOP:
+		sbValue = si.nMin;
+		break;
+
+	case SB_LINEDOWN:       //Scrolls one line down.
+		sbValue++;
+		break;
+
+	case SB_LINEUP:         //Scrolls one line up.
+		sbValue--;
+		break;
+
+	case SB_PAGEDOWN:       //Scrolls one page down.
+		sbValue += si.nPage;
+		break;
+
+	case SB_PAGEUP:         //Scrolls one page up.
+		sbValue -= si.nPage;
+		break;
+
+	case SB_THUMBTRACK:
+	case SB_THUMBPOSITION:
+		sbValue = si.nTrackPos;
+		break;
+	}
+	
+	if(sbValue != current)
+	{
+		if(sbValue > max)
+			sbValue = max;
+
+		if(sbValue < 0)
+			sbValue = 0;
+
+		SetScrollPos(hwnd,which,sbValue,TRUE);
+		InvalidateRect(hwnd,NULL,FALSE);
+	}
+
+	return sbValue;
+}
+
+static LRESULT clOnHorizontalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	handle->scrollOffsetX = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_HORZ, handle->scrollOffsetX, handle->bufferWidth - handle->windowWidth);
+	return 0;
+}
+
+static LRESULT clOnVerticalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
+{	
+	handle->scrollOffsetY = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_VERT, handle->scrollOffsetY, handle->bufferHeight - handle->windowHeight);
+	return 0;
+}
+
+static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	ConLibHandle handle = (ConLibHandle)GetWindowLongPtr(hwnd, GWL_USERDATA);
+
+	switch(message)
+	{
+	case WM_CREATE:
+		clOnCreate(hwnd, (LPCREATESTRUCT)lParam);
+		break;
+
+	case WM_CLOSE:
+		if(handle->notificationCallback) 
+			return handle->notificationCallback(CONSOLE_NOTIFY_CLOSE, wParam, lParam);
+		break;
+
+	case WM_COPYDATA:
+		return clCopyDataHandler(handle, (COPYDATASTRUCT*)lParam);
+
+	case WM_TIMER:
+		return clWndProc(messageToPost.hwnd,messageToPost.message,messageToPost.wParam,messageToPost.lParam);
+		
+	case WM_LBUTTONDOWN:
+		clOnStartSelection(handle, hwnd, wParam, lParam);
+		break;
+
+	case WM_MOUSEMOVE:		
+		clOnContinueSelection(handle, hwnd, wParam, lParam);
+		break;
+
+	case WM_LBUTTONUP:
+		clOnEndSelection(handle, hwnd, wParam, lParam);
+		break;
+
+	case WM_KEYDOWN:
+		clOnKeyDown(handle, hwnd, wParam, lParam);
+		break;
+
+	case WM_KEYUP:
+		clOnKeyUp(handle, hwnd, wParam, lParam);
+		break;
+
+	case WM_GETMINMAXINFO:
+		clOnGetMinMaxInfo(handle, (MINMAXINFO*)lParam);
 		break;
 
 	case WM_SIZING:
-
-		if(handle->lastWindowState != wParam)
-			InvalidateRect(hwnd,NULL,TRUE);
-
-		handle->lastWindowState = (int)wParam;
-
-		if(wParam != SIZE_MINIMIZED)
-		{
-			RECT* r = (RECT*)lParam;
-
-			clProcessResize(handle, r, wParam);
-		}
-
+		clOnResizeInProgress(handle, hwnd, wParam, lParam);
 		break;
 
 	case WM_SIZE:
-
-		if( (wParam != SIZE_MINIMIZED) && (handle->lastWindowState != wParam))
-		{
-			RECT r;
-
-			if(GetWindowRect(hwnd,&r)==0) break;
-
-			clProcessResize(handle, &r, 0);
-
-			clUpdateScrollBars(handle);
-
-			InvalidateRect(hwnd,NULL,TRUE);
-			UpdateWindow(hwnd);
-		}
-
-		handle->lastWindowState = (int)wParam;
+		clOnResizeFinished(handle, hwnd, wParam, lParam);
 		break;
 
 	case WM_HSCROLL:
-		{
-			int sbValue;
-			int cmd = LOWORD(wParam);
-			SCROLLINFO si;
-			ZeroMemory(&si,sizeof(si));
-			si.cbSize = sizeof(si);
-			si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
-				
-			GetScrollInfo(hwnd, SB_HORZ, &si);
-			
-			sbValue = si.nPos;
-				
-			switch(cmd)
-			{
-			case SB_BOTTOM:
-				sbValue = si.nMax;
-				break;
+		return clOnHorizontalScroll(handle, hwnd, wParam, lParam);
 
-			case SB_TOP:
-				sbValue = si.nMax;
-				break;
-
-			case SB_LINEDOWN:       //Scrolls one line down.
-				sbValue++;
-				break;
-
-			case SB_LINEUP:         //Scrolls one line up.
-				sbValue--;
-				break;
-
-			case SB_PAGEDOWN:       //Scrolls one page down.
-				sbValue += si.nPage;
-				break;
-
-			case SB_PAGEUP:         //Scrolls one page up.
-				sbValue -= si.nPage;
-				break;
-
-			case SB_THUMBTRACK:
-			case SB_THUMBPOSITION:
-				sbValue = si.nTrackPos;
-				break;
-			}
-
-			if(sbValue != handle->scrollOffsetX)
-			{
-				if(sbValue > (handle->bufferHeight - handle->windowHeight))
-					sbValue = (handle->bufferHeight - handle->windowHeight);
-
-				if(sbValue < 0)
-					sbValue = 0;
-
-				handle->scrollOffsetX = sbValue;
-				SetScrollPos(hwnd,SB_HORZ,sbValue,TRUE);
-				InvalidateRect(hwnd,NULL,FALSE);
-			}
-		}
-		return 0;
 	case WM_VSCROLL:
-		{			
-			int sbValue;
-			int cmd = LOWORD(wParam);
-			SCROLLINFO si;
-			ZeroMemory(&si,sizeof(si));
-			si.cbSize = sizeof(si);
-			si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
-
-			GetScrollInfo(hwnd, SB_VERT, &si);
-				
-			sbValue = si.nPos;
-				
-			switch(cmd)
-			{
-			case SB_BOTTOM:
-				sbValue = si.nMax;
-				break;
-
-			case SB_TOP:
-				sbValue = si.nMax;
-				break;
-
-			case SB_LINEDOWN:       //Scrolls one line down.
-				sbValue++;
-				break;
-
-			case SB_LINEUP:         //Scrolls one line up.
-				sbValue--;
-				break;
-
-			case SB_PAGEDOWN:       //Scrolls one page down.
-				sbValue += si.nPage;
-				break;
-
-			case SB_PAGEUP:         //Scrolls one page up.
-				sbValue -= si.nPage;
-				break;
-
-			case SB_THUMBTRACK:
-			case SB_THUMBPOSITION:
-				sbValue = si.nTrackPos;
-				break;
-			}
-
-			if(sbValue != handle->scrollOffsetY)
-			{
-				if(sbValue > (handle->bufferHeight - handle->windowHeight))
-					sbValue = (handle->bufferHeight - handle->windowHeight);
-
-				if(sbValue < 0)
-					sbValue = 0;
-
-				handle->scrollOffsetY = sbValue;
-				SetScrollPos(hwnd,SB_VERT,sbValue,TRUE);
-				InvalidateRect(hwnd,NULL,FALSE);
-			}
-		}
-		return 0;
+		return clOnVerticalScroll(handle, hwnd, wParam, lParam);
+		
 	case WM_PAINT:
-		{
-			clUpdateScrollBars(handle);
-
-			clPaintText(handle, hwnd);
-		}
+		clUpdateScrollBars(handle);
+		clPaintText(handle, hwnd);
 		break;
+
 	case CLMSG_CLEAR:
 		clClearArea(handle, lParam);
 		break;
@@ -637,7 +730,7 @@ static void clCreateWindow(ConLibHandle handle)
 		wndclass.hInstance = GetModuleHandle(NULL);
 		wndclass.hIcon = NULL;
 		wndclass.hCursor = LoadCursor(NULL, IDC_IBEAM);
-		wndclass.hbrBackground = NULL; // CreateSolidBrush(RGB(255,0,255));
+		wndclass.hbrBackground = NULL;
 		wndclass.lpszMenuName = NULL;
 		wndclass.lpszClassName = _T("ConLibWindow");
 		wndclass.hIconSm = NULL;
@@ -665,22 +758,17 @@ static void clCreateWindow(ConLibHandle handle)
 		DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
 		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
-		L"Lucida Console"
+		L"Consolas"
 		);
 
 	ShowWindow(window, SW_NORMAL);
 
 	handle->windowHandle = window;
 
-	// measure the font
-	//LOGFONT lfont;
 	hdc = GetDC(window);
 	SelectObject(hdc,handle->fontBold);
 
 	GetTextMetrics(hdc, &tm);
-
-	//GetObject(handle->windowFont, sizeof(LOGFONT), &lfont);
-	//lfont.
 
 	handle->characterWidth = tm.tmAveCharWidth;
 	handle->characterHeight = tm.tmHeight;

@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 
 	printf("Initializing ConLib...\n");
 
-	handle = ConLibCreateConsole(80, 320, 80, 10, CONSOLE_MAKE_ATTRIBUTE(0,0,0,0,0,0,0));
+	handle = ConLibCreateConsole(80, 320, 80, 10, CONSOLE_MAKE_ATTRIBUTE(0,16,16,16,0,0,0));
 	if(handle == NULL)
 	{
 		printf("Error creating ConLib console!\n");
@@ -52,6 +52,8 @@ int main(int argc, char* argv[])
 	ConLibSetWindowTitle(handle, L"ConLib Demo Console");
 	
 	ConLibSetNotificationCallback(handle, notification_callback);
+	
+	ConLibWPrintf(handle, L"語\r\n");
 
 	for(i=0;i<32;i++)
 	{

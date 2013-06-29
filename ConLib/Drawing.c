@@ -39,68 +39,6 @@ static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* t
 	TextOut(hdc,x * handle->characterWidth, y*handle->characterHeight, text, nchars);
 }
 
-void clUpdateScrollBars(ConLibHandle handle)
-{
-	HWND hwnd = handle->windowHandle;
-
-	SCROLLINFO si;
-	ZeroMemory(&si, sizeof(si));
-
-	if(handle->windowHeight>=handle->bufferHeight)
-	{
-		handle->scrollOffsetY=0;
-		//ShowScrollBar(hwnd,SB_VERT,FALSE);
-		si.cbSize = sizeof(si);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS | SIF_DISABLENOSCROLL;
-		si.nMin = 0;
-		si.nMax = 0;
-		si.nPage = 1;
-		si.nPos = 0;
-		si.nTrackPos=0;
-		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
-
-	}
-	else
-	{
-		if(handle->scrollOffsetY>=(handle->bufferHeight-handle->windowHeight))
-			handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight-1;
-
-		//ShowScrollBar(hwnd,SB_VERT,TRUE);
-
-		si.cbSize = sizeof(si);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
-		si.nMin = 0;
-		si.nMax = handle->bufferHeight-1;
-		si.nPage = handle->windowHeight;
-		si.nPos = handle->scrollOffsetY;
-		si.nTrackPos = handle->scrollOffsetY;
-		SetScrollInfo(hwnd,SB_VERT, &si, TRUE);
-		EnableScrollBar(hwnd, SB_VERT, ESB_ENABLE_BOTH);
-	}
-
-	if(handle->windowWidth>=handle->bufferWidth)
-	{
-		handle->scrollOffsetX=0;
-		ShowScrollBar(hwnd,SB_HORZ,FALSE);
-	}
-	else
-	{
-		if(handle->scrollOffsetX>=(handle->bufferWidth-handle->windowWidth))
-			handle->scrollOffsetX = handle->bufferWidth-handle->windowWidth-1;
-
-		ShowScrollBar(hwnd,SB_HORZ,TRUE);
-
-		si.cbSize = sizeof(si);
-		si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS | SIF_TRACKPOS;
-		si.nMin = 0;
-		si.nMax = handle->bufferWidth-1;
-		si.nPage = handle->windowWidth;
-		si.nPos = handle->scrollOffsetX;
-		si.nTrackPos = handle->scrollOffsetX;
-		SetScrollInfo(hwnd,SB_HORZ, &si, TRUE);
-	}
-}
-
 static void clScrollBufferDown(ConLibHandle handle)
 {
 	int y, x;
@@ -227,9 +165,18 @@ int clInternalWrite(ConLibHandle handle, const wchar_t* data, int characters)
 	for(chars=characters;chars>0;chars--)
 	{
 		wchar_t ch = *data++;
+		int fw = IsFullWidth(ch);
+
+		handle->currentAttribute.isFullWidthStart = fw;
+
 		clPutChar(handle, ch);
-		if(IsFullWidth(ch))
+
+		handle->currentAttribute.isFullWidthStart = 0;
+			
+		if(fw)
+		{
 			clPutChar(handle, FULLWIDTH_NOSPACE_FILLER);
+		}
 	}
 
 //	if(characters>0)
@@ -422,7 +369,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 					isSelected = (ay >= selStartY) && (ay <= selEndY) && (ax >= selStartX) && (ax <= selEndX);
 				}
 
-				if((at.all != lat.all) || (lastSelected != isSelected))
+				if((at.fg != lat.fg) || (at.fg != lat.fg) || (at.bold != lat.bold) || (lastSelected != isSelected))
 				{
 					temp[nchars]=0;
 					if(nchars>0)
@@ -456,10 +403,12 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 					SetTextColor(hdc, fColor);
 					SetBkColor(hdc, bColor);
 				}
+
+				if(!lat.isFullWidthStart)
+					temp[nchars++] = (wchar_t)cRow[ax];
+				
 				lat=at;
 				lastSelected = isSelected;
-				if((wchar_t)cRow[ax] != FULLWIDTH_NOSPACE_FILLER)
-					temp[nchars++] = (wchar_t)cRow[ax];
 			}
 			temp[nchars]=0;
 			if(nchars>0)
