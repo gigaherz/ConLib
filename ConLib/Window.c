@@ -27,6 +27,11 @@
 #include <stdio.h>
 #include "ConLibInternal.h"
 
+// Vista and up
+#define WM_MOUSEHWHEEL 0x020E
+#define SPI_GETWHEELSCROLLCHARS 0x006C
+
+
 MSG __declspec(thread) messageToPost;
 
 bool classRegistered=false;
@@ -626,6 +631,31 @@ static int clOnScrollbarUpdate(HWND hwnd, int cmd, int which, int current, int m
 	return sbValue;
 }
 
+static int clOnScrollbarDelta(HWND hwnd, int which, int delta, int max)
+{
+	int sbValue;
+
+	SCROLLINFO si;
+	ZeroMemory(&si,sizeof(si));
+	si.cbSize = sizeof(si);
+	si.fMask = SIF_POS|SIF_PAGE|SIF_RANGE|SIF_TRACKPOS;
+
+	GetScrollInfo(hwnd, which, &si);
+				
+	sbValue = si.nPos + delta;
+
+	if(sbValue > max)
+		sbValue = max;
+
+	if(sbValue < 0)
+		sbValue = 0;
+
+	SetScrollPos(hwnd,which,sbValue,TRUE);
+	InvalidateRect(hwnd,NULL,FALSE);
+
+	return sbValue;
+}
+
 static LRESULT clOnHorizontalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
 	handle->scrollOffsetX = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_HORZ, handle->scrollOffsetX, handle->bufferWidth - handle->windowWidth);
@@ -636,6 +666,44 @@ static LRESULT clOnVerticalScroll(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 {	
 	handle->scrollOffsetY = clOnScrollbarUpdate(hwnd, LOWORD(wParam), SB_VERT, handle->scrollOffsetY, handle->bufferHeight - handle->windowHeight);
 	return 0;
+}
+
+static void clOnMouseWheel(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam, int which)
+{
+	int fwKeys = GET_KEYSTATE_WPARAM(wParam);
+	int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+	int xPos = GET_X_LPARAM(lParam); 
+	int yPos = GET_Y_LPARAM(lParam); 
+	int max, delta = 0;
+	
+	if(which == SB_VERT) // vertical
+	{
+		UINT sysConfig;
+
+		if(!SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &sysConfig, 0))
+		{
+			sysConfig = 3;
+		}
+
+		delta = (int)sysConfig * zDelta / -120;
+		max = handle->bufferHeight - handle->windowHeight;	
+		
+		handle->scrollOffsetY = clOnScrollbarDelta(hwnd, which, delta, max);
+	}
+	else if(which == SB_HORZ)
+	{
+		UINT sysConfig;
+
+		if(!SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &sysConfig, 0))
+		{
+			sysConfig = 3;
+		}
+
+		delta = (int)sysConfig * zDelta / 120;
+		max = handle->bufferWidth - handle->windowWidth;
+
+		handle->scrollOffsetX = clOnScrollbarDelta(hwnd, which, delta, max);
+	}
 }
 
 static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -678,6 +746,14 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 	case WM_KEYUP:
 		clOnKeyUp(handle, hwnd, wParam, lParam);
 		break;
+
+	case WM_MOUSEWHEEL:
+		clOnMouseWheel(handle, hwnd, wParam, lParam, SB_VERT);
+		return 0;
+		
+	case WM_MOUSEHWHEEL:
+		clOnMouseWheel(handle, hwnd, wParam, lParam, SB_HORZ);
+		return 0;
 
 	case WM_GETMINMAXINFO:
 		clOnGetMinMaxInfo(handle, (MINMAXINFO*)lParam);
