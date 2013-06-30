@@ -34,13 +34,13 @@
 
 extern MSG __declspec(thread) messageToPost;
 
-int clIsFullWidthStart(ConLibHandle handle, int x, int y)
+static bool clIsContinuation(ConLibHandle handle, int x, int y)
 {
 	charAttribute attr;
 
 	attr.all = handle->attributeRows[y][x];
 
-	return attr.isFullWidthStart;
+	return attr.isContinuation;
 }
 
 static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* text, int nchars)
@@ -128,11 +128,32 @@ static void clMoveNext(ConLibHandle handle)
 	}
 }
 
-static void clPutChar(ConLibHandle handle, wchar_t chr)
+static void clPutCharInBuffer(ConLibHandle handle, wchar_t chr, bool isContinuation)
 {
 	int* cRow = handle->characterRows[handle->cursorY];
 	int* aRow = handle->attributeRows[handle->cursorY];
 
+	RECT r = {
+		handle->cursorX * handle->characterWidth,
+		(handle->cursorY-handle->scrollOffsetY)*handle->characterHeight,
+		(handle->cursorX+1) * handle->characterWidth,
+		(handle->cursorY+1-handle->scrollOffsetY)*handle->characterHeight
+	};
+
+	charAttribute attr = handle->currentAttribute;
+
+	attr.isContinuation = isContinuation;
+
+	cRow[handle->cursorX] = chr;
+	aRow[handle->cursorX] = attr.all;
+
+	InvalidateRect(handle->windowHandle,&r,FALSE);
+
+	clMoveNext(handle);
+}
+
+static void clPutChar(ConLibHandle handle, wchar_t chr)
+{
 	if(chr <32)
 	{
 		switch(chr)
@@ -144,26 +165,25 @@ static void clPutChar(ConLibHandle handle, wchar_t chr)
 			handle->cursorX=0;
 			break;
 		case 9:
-			clMoveNext(handle);
-			while( (handle->cursorX% TAB_SIZE)!= 0)
+			if(handle->tabClearsBuffer)
+			{
+				clPutCharInBuffer(handle, chr, false);
+				while( (handle->cursorX % handle->tabSize)!= 0)
+					clPutCharInBuffer(handle, chr, true);
+			}
+			else
+			{
 				clMoveNext(handle);
+				while( (handle->cursorX % handle->tabSize)!= 0)
+					clMoveNext(handle);
+			}
 		}
 	}
 	else
 	{
-		RECT r = {
-			handle->cursorX * handle->characterWidth,
-			(handle->cursorY-handle->scrollOffsetY)*handle->characterHeight,
-			(handle->cursorX+1) * handle->characterWidth,
-			(handle->cursorY+1-handle->scrollOffsetY)*handle->characterHeight
-		};
-
-		cRow[handle->cursorX] = chr;
-		aRow[handle->cursorX] = handle->currentAttribute.all;
-
-		InvalidateRect(handle->windowHandle,&r,FALSE);
-
-		clMoveNext(handle);
+		clPutCharInBuffer(handle, chr, false);
+			
+		if(IsFullWidth(chr)) clPutCharInBuffer(handle, chr, true);
 	}
 }
 
@@ -174,18 +194,8 @@ int clInternalWrite(ConLibHandle handle, const wchar_t* data, int characters)
 	for(chars=characters;chars>0;chars--)
 	{
 		wchar_t ch = *data++;
-		int fw = IsFullWidth(ch);
-
-		handle->currentAttribute.isFullWidthStart = fw;
 
 		clPutChar(handle, ch);
-
-		handle->currentAttribute.isFullWidthStart = 0;
-			
-		if(fw)
-		{
-			clPutChar(handle, FULLWIDTH_NOSPACE_FILLER);
-		}
 	}
 
 //	if(characters>0)
@@ -312,11 +322,12 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 		bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
 		fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
 
-		// for sel modes 1 and 2
-		selStartI = 0;
-		selEndI   = -1;
 		selMode   = handle->selectionMode;
 		bufWidth  = handle->bufferWidth;
+		
+		// for sel mode 1
+		selStartI = 0;
+		selEndI   = -1;
 
 		selStartX = handle->selectionStartX;
 		selStartY = handle->selectionStartY;
@@ -328,19 +339,30 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 
 		switch(selMode)
 		{
-		case 1:
+		case 1: // standard
+			if(selEndY < selStartY || (selEndY == selStartY && selEndX < selStartX))
+			{
+				swap(&selStartX, &selEndX);
+				swap(&selStartY, &selEndY);
+			}
+			
 			selStartI = (selStartY * bufWidth) + selStartX;
 			selEndI   = (selEndY * bufWidth) + selEndX;
 			break;
-		case 2:
-			selStartI = (selStartY * bufWidth);
-			selEndI   = ((selEndY + 1) * bufWidth) - 1;
+
+		case 2: // block (full lines)
+			if(selEndY < selStartY) swap(&selStartY, &selEndY);
+			break;
+			
+		case 3: // rectangle			
+			if(selEndX < selStartX) swap(&selStartX, &selEndX);
+			if(selEndY < selStartY) swap(&selStartY, &selEndY);
 			break;
 		}
 
 		lastSelected = false;
 
-		SelectObject(hdc,(lat.bold?handle->fontBold:handle->fontNormal));
+		SelectObject(hdc,handle->fontNormal);
 
 		SetTextColor(hdc, fColor);
 		SetBkColor(hdc, bColor);
@@ -354,39 +376,85 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 			int* aRow = handle->attributeRows[ay];
 			int nchars=0;
 			int lastx=l;
+
+			int ss = 0, se = 0;
+
+			bool isSelectionRow = (ay >= selStartY) && (ay <= selEndY);
 			
-			if(l > 0 || handle->scrollOffsetX > 0)
+			if(clIsContinuation(handle, l+handle->scrollOffsetX, ay))
 			{
-				if(clIsFullWidthStart(handle, l+handle->scrollOffsetX-1, ay))
+				lastx--;
+			}
+			
+			if(selMode == 1)
+			{
+				ss = selStartI;
+				se = selEndI;
+
+				if(ay == selStartY)
 				{
-					lastx--;
+					if(clIsContinuation(handle, selStartX, selStartY))
+					{
+						ss--;
+					}
+				}
+				
+				if(ay == selEndY)
+				{
+					int st = selEndX+1;
+					while(st < handle->bufferWidth && clIsContinuation(handle, st, selEndY))
+					{
+						se++;
+						st++;
+					}
 				}
 			}
+			else if(selMode == 3)
+			{
+				ss = selStartX;
+				se = selEndX;
+					
+				if(clIsContinuation(handle, ss, ay))
+				{
+					ss--;
+				}
 
+				while((se+1) < handle->bufferWidth && clIsContinuation(handle, se+1, ay))
+				{
+					se++;
+				}
+			}
+			
 			for(x=lastx;x<r;x++)
 			{
+				int cI;
 				bool isSelected = false;
 				charAttribute at;
 				
 				int ax = x+handle->scrollOffsetX;
 
 				at.all = aRow[ax];
+				
+				switch(selMode)
+				{
+				case 1:
+					cI = (ay * bufWidth) + ax;
+					isSelected = (cI>=ss) && (cI<=se);
+					break;
+				case 2:
+					isSelected = isSelectionRow;
+					break;
+				case 3:
+					isSelected = isSelectionRow && (ax >= ss) && (ax <= se);
+					break;
+				}
 
-				if(selMode==1)
-				{
-					int cI = (ay * bufWidth) + ax;
-					isSelected = (cI>=selStartI) && (cI<=selEndI);
-				}
-				else if(selMode==2)
-				{
-					isSelected = (ay >= selStartY) && (ay <= selEndY);
-				}
-				else if(selMode==3)
-				{
-					isSelected = (ay >= selStartY) && (ay <= selEndY) && (ax >= selStartX) && (ax <= selEndX);
-				}
-
-				if((at.fg != lat.fg) || (at.fg != lat.fg) || (at.bold != lat.bold) || (lastSelected != isSelected))
+				if ((at.fg != lat.fg) ||
+					(at.fg != lat.fg) || 
+#if ENABLE_BOLD_SUPPORT
+					(at.bold != lat.bold) ||
+#endif
+					(lastSelected != isSelected))
 				{
 					temp[nchars]=0;
 					if(nchars>0)
@@ -402,8 +470,8 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 
 						if(t > 48)
 						{
-							fColor = 0x00ffffff;
 							bColor = 0x00000000;
+							fColor = 0x00ffffff;
 						}
 						else
 						{
@@ -416,13 +484,17 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 						bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
 						fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
 					}
+					
+#if ENABLE_BOLD_SUPPORT
+					if(at.bold != lat.bold)
+						SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
+#endif
 
-					SelectObject(hdc,(at.bold?handle->fontBold:handle->fontNormal));
 					SetTextColor(hdc, fColor);
 					SetBkColor(hdc, bColor);
 				}
 
-				if(!lat.isFullWidthStart)
+				if(!at.isContinuation)
 					temp[nchars++] = (wchar_t)cRow[ax];
 				
 				lat=at;

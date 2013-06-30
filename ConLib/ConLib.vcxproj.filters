@@ -18,9 +18,6 @@
     <ClCompile Include="UnicodeTools.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DllMain.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Window.c">
       <Filter>Source Files</Filter>
     </ClCompile>

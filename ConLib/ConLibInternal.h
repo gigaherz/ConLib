@@ -29,7 +29,7 @@ typedef union charAttribute_t {
 		unsigned int bgColorB : 5;
 		unsigned int bgColorG : 5;
 		unsigned int bgColorR : 5;
-		unsigned int isFullWidthStart : 1;
+		unsigned int isContinuation : 1;
 		unsigned int fgColorB : 5;
 		unsigned int fgColorG : 5;
 		unsigned int fgColorR : 5;
@@ -86,6 +86,9 @@ typedef struct conLibPrivateData
 
 	int mouseLIsPressed;
 
+	int tabSize;
+	bool tabClearsBuffer;
+
 	pConLibNotificationCallback notificationCallback;
 
 	HFONT fontNormal;
@@ -111,7 +114,7 @@ typedef struct conLibPrivateData
 #define CLMSG_NOOP (WM_USER+0)
 #define CLMSG_CLEAR (WM_USER+1)
 
-#define TAB_SIZE 8
+#define DEFAULT_TAB_SIZE 8
 #define FULLWIDTH_NOSPACE_FILLER 0x2060
 
 extern DWORD clThreadProc(ConLibHandle handle);

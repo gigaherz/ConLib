@@ -25,7 +25,28 @@
 #define RANGE(a,b) ((character >= a) && (character <= b))
 #define SINGLE(a) (character == a)
 
+bool IsFullWidth1(wchar_t character);
+
+bool isFullWidth[65536];
+
+void setIsFullWidth(LPABCFLOAT floats, float threshold)
+{
+	int i;
+	for(i=0;i<65535;i++)
+	{
+		if	(floats[i].abcfB > threshold)
+			isFullWidth[i] = true;
+		else
+			isFullWidth[i] = false;
+	}
+}
+
 bool IsFullWidth(wchar_t character)
+{
+	return isFullWidth[character] || IsFullWidth1(character);
+}
+
+bool IsFullWidth1(wchar_t character)
 {
    /* Taken from:
 	* EastAsianWidth-6.0.0.txt

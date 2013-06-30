@@ -87,6 +87,9 @@ ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int
 
 	handle->lastWindowState = SIZE_RESTORED;
 
+	handle->tabSize = DEFAULT_TAB_SIZE;
+	handle->tabClearsBuffer = true;
+
 	ConLibGotoXY(handle,0,0);
 
 	handle->hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)clThreadProc, handle, 0, &handle->idThread);

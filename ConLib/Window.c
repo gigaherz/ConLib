@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "ConLibInternal.h"
+#include "UnicodeTools.h"
 
 // Vista and up
 #define WM_MOUSEHWHEEL 0x020E
@@ -207,7 +208,6 @@ static void clOnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
 	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
-	int fw = 0;
 
 	SetCapture(hwnd);
 
@@ -220,24 +220,9 @@ static void clOnStartSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LP
 	handle->selectionStartX = (x / handle->characterWidth)+handle->scrollOffsetX; 
 	handle->selectionStartY = (y / handle->characterHeight)+handle->scrollOffsetY; 
 	
-	if(handle->selectionStartX > 0)
-	{
-		fw=clIsFullWidthStart(handle, handle->selectionStartX-1, handle->selectionStartY);
-		if(fw)
-		{
-			handle->selectionStartX--;
-			fw = 1;
-		}
-	}
-
 	handle->selectionEndX = handle->selectionStartX; 
 	handle->selectionEndY = handle->selectionStartY; 
 
-	if(fw)
-	{
-		handle->selectionEndX++;
-	}
-	
 	handle->mouseLIsPressed = true;
 
 	InvalidateRect(hwnd,NULL,FALSE);
@@ -254,11 +239,26 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 		handle->selectionEndX = (x / handle->characterWidth)+handle->scrollOffsetX; 
 		handle->selectionEndY = (y / handle->characterHeight)+handle->scrollOffsetY; 
 		
-		if(clIsFullWidthStart(handle, handle->selectionEndX, handle->selectionEndY))
+		if (handle->selectionEndX < 0)
 		{
-			handle->selectionEndX++;
+			handle->selectionEndX = 0;
 		}
-
+		
+		if (handle->selectionEndX >= handle->bufferWidth)
+		{
+			handle->selectionEndX = handle->bufferWidth - 1;
+		}
+		
+		if (handle->selectionEndY < 0)
+		{
+			handle->selectionEndY = 0;
+		}
+		
+		if (handle->selectionEndY >= handle->bufferHeight)
+		{
+			handle->selectionEndY = handle->bufferHeight - 1;
+		}
+		
 		if(handle->selectionEndX < handle->scrollOffsetX)
 		{
 			handle->scrollOffsetX = handle->selectionEndX;
@@ -298,27 +298,15 @@ static void clOnContinueSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam,
 			else
 				clDelayMouseMove(handle, hwnd, wParam, lParam);
 		}
-
+		
 		InvalidateRect(hwnd,NULL,FALSE);
 	}
 }
 
-static void clOnEndSelection(ConLibHandle handle, HWND hwnd, LPARAM lParam)
+static void clOnEndSelection(ConLibHandle handle, HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-	int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
-
-	if(handle->selectionMode>0)
-	{
-		handle->selectionEndX = (x / handle->characterWidth)+handle->scrollOffsetX; 
-		handle->selectionEndY = (y / handle->characterHeight)+handle->scrollOffsetY; 
-
-		if(clIsFullWidthStart(handle, handle->selectionEndX, handle->selectionEndY))
-		{
-			handle->selectionEndX++;
-		}
-
-		InvalidateRect(hwnd,NULL,FALSE);
-	}
+	SendMessage(hwnd, WM_MOUSEMOVE, wParam, lParam);
+	
 	handle->mouseLIsPressed = false;
 
 	KillTimer(hwnd,handle->idThread);
@@ -400,13 +388,12 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 		{
 		case 1: // inline
 			{
-				charAttribute prevAttr;
-				prevAttr.all = 0;
+				charAttribute attr = {0};
 				for(x=handle->selectionStartX;x<handle->bufferWidth;x++)
 				{
-					if(!prevAttr.isFullWidthStart)
+					attr.all = (handle->attributeRows[handle->selectionStartY][x]);
+					if(!attr.isContinuation)
 						copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[handle->selectionStartY][x]);
-					prevAttr.all = (handle->attributeRows[handle->selectionStartY][x]);
 				}
 				if (handle->selectionStartY < handle->selectionEndY)
 				{
@@ -437,13 +424,12 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 			{
 				for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
 				{
-					charAttribute prevAttr;
-					prevAttr.all = 0;
+					charAttribute attr = {0};
 					for(x=0;x<handle->bufferWidth;x++)
 					{
-						if(!prevAttr.isFullWidthStart)
+						attr.all = (handle->attributeRows[y][x]);
+						if(!attr.isContinuation)
 							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
-						prevAttr.all = (handle->attributeRows[y][x]);
 					}
 					copiedText[copiedTextLength++] = L'\r';
 					copiedText[copiedTextLength++] = L'\n';
@@ -454,13 +440,12 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
 			{
 				for(y=handle->selectionStartY;y<=handle->selectionEndY;y++)
 				{
-					charAttribute prevAttr;
-					prevAttr.all = 0;
+					charAttribute attr = {0};
 					for(x=handle->selectionStartX;x<=handle->selectionEndX;x++)
 					{
-						if(!prevAttr.isFullWidthStart)
+						attr.all = (handle->attributeRows[y][x]);
+						if(!attr.isContinuation)
 							copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
-						prevAttr.all = (handle->attributeRows[y][x]);
 					}
 					copiedText[copiedTextLength++] = L'\r';
 					copiedText[copiedTextLength++] = L'\n';
@@ -735,15 +720,15 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 		
 	case WM_LBUTTONDOWN:
 		clOnStartSelection(handle, hwnd, wParam, lParam);
-		break;
+		return 0;
 
 	case WM_MOUSEMOVE:		
 		clOnContinueSelection(handle, hwnd, wParam, lParam);
-		break;
+		return 0;
 
 	case WM_LBUTTONUP:
-		clOnEndSelection(handle, hwnd, lParam);
-		break;
+		clOnEndSelection(handle, hwnd, wParam, lParam);
+		return 0;
 
 	case WM_KEYDOWN:
 		clOnKeyDown(handle, hwnd, wParam);
@@ -794,9 +779,10 @@ static LRESULT CALLBACK clWndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
 
 static void clCreateWindow(ConLibHandle handle)
 {
+	const wchar_t *fontFamily = L"MS Mincho";
+	const int preferredHeight = 14;
+
 	HWND window;
-	TEXTMETRIC tm;
-	HDC hdc;
 	RECT wr, cr;
 	int xborder, yborder, width, height;
 
@@ -831,42 +817,86 @@ static void clCreateWindow(ConLibHandle handle)
 		WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL,
 		CW_USEDEFAULT, CW_USEDEFAULT, 200, 200,
 		0, NULL, GetModuleHandle(NULL), handle);
+	
+	handle->windowHandle = window;
+	
+	ShowWindow(window, SW_NORMAL);
 
-	handle->fontBold = CreateFont(
-		14,7,
+#if !ENABLE_BOLD_SUPPORT
+	
+	handle->fontNormal = CreateFont(
+		preferredHeight, 0,
 		0,0,
-		FW_BOLD,
+		0,
 		FALSE,FALSE,FALSE,
 		DEFAULT_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
 		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
-		L"Consolas"
+		fontFamily
 		);
-
-	ShowWindow(window, SW_NORMAL);
-
-	handle->windowHandle = window;
-
-	hdc = GetDC(window);
-	SelectObject(hdc,handle->fontBold);
-
-	GetTextMetrics(hdc, &tm);
-
-	handle->characterWidth = tm.tmAveCharWidth;
-	handle->characterHeight = tm.tmHeight;
-
-	ReleaseDC(window,hdc);
 	
+	{
+		ABCFLOAT floats[65536];
+
+		TEXTMETRIC tm;
+		HDC hdc = GetDC(window);
+		SelectObject(hdc,handle->fontNormal);
+
+		GetTextMetrics(hdc, &tm);
+
+		handle->characterWidth = tm.tmAveCharWidth;
+		handle->characterHeight = tm.tmHeight;
+
+		SelectObject(hdc, handle->fontNormal);
+
+		GetCharABCWidthsFloat(hdc, 0x0000, 0xFFFF, floats);
+
+		setIsFullWidth(floats, (float)tm.tmAveCharWidth);
+
+		ReleaseDC(window,hdc);
+	}
+#else
 	handle->fontNormal = CreateFont(
-		14,14*handle->characterWidth/handle->characterHeight,
+		preferredHeight, 0,
 		0,0,
 		FW_NORMAL,
 		FALSE,FALSE,FALSE,
-		DEFAULT_CHARSET,
+		ANSI_CHARSET,
 		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
 		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
-		L"Lucida Console"
+		fontFamily
 		);
+		
+	{
+		ABCFLOAT floats[65536];
+
+		TEXTMETRIC tm;
+		HDC hdc = GetDC(window);
+		SelectObject(hdc,handle->fontNormal);
+
+		GetTextMetrics(hdc, &tm);
+
+		handle->characterWidth = tm.tmAveCharWidth;
+		handle->characterHeight = tm.tmHeight;
+
+		GetCharABCWidthsFloat(hdc, 0x0000, 0xFFFF, floats);
+
+		setIsFullWidth(floats, tm.tmAveCharWidth);
+
+		ReleaseDC(window,hdc);
+	}
+
+	handle->fontBold = CreateFont(
+		preferredHeight, preferredHeight * handle->characterWidth / handle->characterHeight,
+		0, 0,
+		FW_BOLD,
+		FALSE,FALSE,FALSE,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,FIXED_PITCH|FF_DONTCARE,
+		fontFamily
+		);
+#endif
 	
 	UpdateWindow(window);
 

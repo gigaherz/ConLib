@@ -135,7 +135,6 @@
   <ItemGroup>
     <ClCompile Include="Drawing.c" />
     <ClCompile Include="Api.c" />
-    <ClCompile Include="DllMain.c" />
     <ClCompile Include="Window.c" />
     <ClCompile Include="UnicodeTools.c" />
   </ItemGroup>
