@@ -27,68 +27,73 @@
 #include "ConLibInternal.h"
 #include <windowsx.h>
 
-ConLibHandle CALLBACK ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight, int defAttr)
+ConLibHandle CALLBACK ConLibCreateConsole(ConLibCreationParameters *params)
 {
     int y, x;
 
-    ConLibHandle handle = (ConLibHandle)malloc(sizeof(struct conLibPrivateData));
+    ConLibHandle handle = (ConLibHandle)malloc(sizeof(struct conLibPrivateData_t));
 
     if (!handle)
     {
         return NULL;
     }
 
-    ZeroMemory(handle, sizeof(struct conLibPrivateData));
+    ZeroMemory(handle, sizeof(struct conLibPrivateData_t));
+	
+	handle->creationParameters = *params;
 
-    if (bufferWidth < CONSOLE_MIN_BUFFER_WIDTH)		bufferWidth  = CONSOLE_MIN_BUFFER_WIDTH;
-    if (bufferHeight < CONSOLE_MIN_BUFFER_HEIGHT)	bufferHeight = CONSOLE_MIN_BUFFER_HEIGHT;
-    if (bufferWidth > CONSOLE_MAX_BUFFER_WIDTH)		bufferWidth  = CONSOLE_MAX_BUFFER_WIDTH;
-    if (bufferHeight > CONSOLE_MAX_BUFFER_HEIGHT)	bufferHeight = CONSOLE_MAX_BUFFER_HEIGHT;
+    if (handle->creationParameters.bufferWidth < CONSOLE_MIN_BUFFER_WIDTH)		handle->creationParameters.bufferWidth  = CONSOLE_MIN_BUFFER_WIDTH;
+    if (handle->creationParameters.bufferWidth > CONSOLE_MAX_BUFFER_WIDTH)		handle->creationParameters.bufferWidth  = CONSOLE_MAX_BUFFER_WIDTH;
 
-    if (windowWidth < CONSOLE_MIN_WINDOW_WIDTH)		windowWidth  = CONSOLE_MIN_WINDOW_WIDTH;
-    if (windowHeight < CONSOLE_MIN_WINDOW_HEIGHT)	windowHeight = CONSOLE_MIN_WINDOW_HEIGHT;
-    if (windowWidth > CONSOLE_MAX_WINDOW_WIDTH)		windowWidth  = CONSOLE_MAX_WINDOW_WIDTH;
-    if (windowHeight > CONSOLE_MAX_WINDOW_HEIGHT)	windowHeight = bufferHeight;
+	if (handle->creationParameters.bufferHeight < CONSOLE_MIN_BUFFER_HEIGHT)	handle->creationParameters.bufferHeight = CONSOLE_MIN_BUFFER_HEIGHT;
+    if (handle->creationParameters.bufferHeight > CONSOLE_MAX_BUFFER_HEIGHT)	handle->creationParameters.bufferHeight = CONSOLE_MAX_BUFFER_HEIGHT;
 
+    if (handle->creationParameters.windowWidth < CONSOLE_MIN_WINDOW_WIDTH)		handle->creationParameters.windowWidth  = CONSOLE_MIN_WINDOW_WIDTH;
+    if (handle->creationParameters.windowWidth > CONSOLE_MAX_WINDOW_WIDTH)		handle->creationParameters.windowWidth  = CONSOLE_MAX_WINDOW_WIDTH;
 
-    if (windowWidth > bufferWidth)			windowWidth  = bufferWidth;
-    if (windowHeight > bufferHeight)			windowHeight = bufferHeight;
+	if (handle->creationParameters.windowHeight < CONSOLE_MIN_WINDOW_HEIGHT)	handle->creationParameters.windowHeight = CONSOLE_MIN_WINDOW_HEIGHT;
+    if (handle->creationParameters.windowHeight > CONSOLE_MAX_WINDOW_HEIGHT)	handle->creationParameters.windowHeight = CONSOLE_MAX_WINDOW_HEIGHT;
+	
+    if (handle->creationParameters.windowWidth > handle->creationParameters.bufferWidth)
+		handle->creationParameters.windowWidth  = handle->creationParameters.bufferWidth;
+    if (handle->creationParameters.windowHeight > handle->creationParameters.bufferHeight) 
+		handle->creationParameters.windowHeight = handle->creationParameters.bufferHeight;
 
-    handle->bufferWidth = bufferWidth;
-    handle->bufferHeight = bufferHeight;
-    handle->windowWidth = windowWidth;
-    handle->windowHeight = windowHeight;
+	if(handle->creationParameters.tabSize == 0) handle->creationParameters.tabSize = DEFAULT_TAB_SIZE;
+	if(handle->creationParameters.tabSize < CONSOLE_MIN_TAB_WIDTH) handle->creationParameters.tabSize = CONSOLE_MIN_TAB_WIDTH;
+	if(handle->creationParameters.tabSize > CONSOLE_MAX_TAB_WIDTH) handle->creationParameters.tabSize = CONSOLE_MAX_TAB_WIDTH;
 
-    handle->characterBuffer = (int*)malloc(sizeof(int) * (bufferHeight*bufferWidth));
-    handle->attributeBuffer = (int*)malloc(sizeof(int) * (bufferHeight*bufferWidth));
-    handle->characterRows = (int**)malloc(sizeof(int*) * (bufferHeight));
-    handle->attributeRows = (int**)malloc(sizeof(int*) * (bufferHeight));
+	if(handle->creationParameters.tabMode == 0) handle->creationParameters.tabMode = CONSOLE_TAB_WRITE;
+
+	if(handle->creationParameters.fontFamily[0] == 0)
+		wcscpy(handle->creationParameters.fontFamily, L"Lucida Console");
+
+    handle->characterBuffer = (unsigned int*)malloc(sizeof(unsigned int) * (handle->creationParameters.bufferHeight*handle->creationParameters.bufferWidth));
+    handle->attributeBuffer = (unsigned int*)malloc(sizeof(unsigned int) * (handle->creationParameters.bufferHeight*handle->creationParameters.bufferWidth));
+    handle->characterRows = (unsigned int**)malloc(sizeof(unsigned int*) * (handle->creationParameters.bufferHeight));
+    handle->attributeRows = (unsigned int**)malloc(sizeof(unsigned int*) * (handle->creationParameters.bufferHeight));
 
     //int defAttr = CONSOLE_MAKE_ATTRIBUTE(0,4,31,4,0,4,0);
 
-    for (y=0;y<bufferHeight;y++)
+    for (y=0;y<handle->creationParameters.bufferHeight;y++)
     {
-        int* cRow = handle->characterRows[y] = handle->characterBuffer + (bufferWidth * y);
-        int* aRow = handle->attributeRows[y] = handle->attributeBuffer + (bufferWidth * y);
+        unsigned int* cRow = handle->characterRows[y] = handle->characterBuffer + (handle->creationParameters.bufferWidth * y);
+        unsigned int* aRow = handle->attributeRows[y] = handle->attributeBuffer + (handle->creationParameters.bufferWidth * y);
 
-        for (x=0;x<handle->bufferWidth;x++)
+        for (x=0;x<handle->creationParameters.bufferWidth;x++)
         {
             cRow[x]=0x20;
-            aRow[x]=defAttr;
+			aRow[x]=handle->creationParameters.defaultAttribute;
         }
     }
 
-    handle->defaultAttribute.all = defAttr;
-    handle->currentAttribute.all = defAttr;
+    handle->currentAttribute.all = handle->creationParameters.defaultAttribute;
     handle->scrollOffsetY = 0;
     handle->scrollOffsetX = 0;
 
     handle->notificationCallback = NULL;
 
     handle->lastWindowState = SIZE_RESTORED;
-
-    handle->tabSize = DEFAULT_TAB_SIZE;
-    handle->tabClearsBuffer = true;
 
     ConLibGotoXY(handle,0,0);
 
@@ -132,39 +137,56 @@ void CALLBACK ConLibDestroyConsole(ConLibHandle handle)
     free(handle);
 }
 
-void CALLBACK ConLibSetControlParameter(ConLibHandle handle, int parameterId, int value)
+bool CALLBACK ConLibSetControlParameter(ConLibHandle handle, int parameterId, int value)
 {
     switch (parameterId)
     {
     case CONSOLE_CURSOR_X:
-        if (value<0)						value=0;
-        if (value>=handle->bufferWidth)	value=handle->bufferWidth-1;
+        if (value < 0) return false;
+        if (value >= handle->creationParameters.bufferWidth) return false;
         handle->cursorX = value;
         break;
     case CONSOLE_CURSOR_Y:
-        if (value<0)						value=0;
-        if (value>=handle->bufferHeight)	value=handle->bufferHeight-1;
-        handle->cursorY = (value%handle->bufferHeight);
+        if (value < 0) return false;
+        if (value >= handle->creationParameters.bufferHeight) return false;
+        handle->cursorY = value;
         break;
     case CONSOLE_CURRENT_ATTRIBUTE:
         handle->currentAttribute.all = value;
         break;
     case CONSOLE_DEFAULT_ATTRIBUTE:
-        handle->defaultAttribute.all = value;
+        handle->creationParameters.defaultAttribute = value;
         break;
     case CONSOLE_SCROLL_OFFSET_X:
-        if (value<0)	value=0;
-        if (value>(handle->bufferWidth-handle->windowWidth))
-            value=(handle->bufferWidth-handle->windowWidth);
+        if (value < 0) return false;
+        if (value > (handle->creationParameters.bufferWidth-handle->creationParameters.windowWidth)) return false;
         handle->scrollOffsetX = value;
         break;
     case CONSOLE_SCROLL_OFFSET_Y:
-        if (value<0)	value=0;
-        if (value>(handle->bufferHeight-handle->windowHeight))
-            value=(handle->bufferHeight-handle->windowHeight);
+        if (value < 0) return false;
+        if (value > (handle->creationParameters.bufferHeight-handle->creationParameters.windowHeight)) return false;
         handle->scrollOffsetY = value;
         break;
+	case CONSOLE_TAB_WIDTH:
+		if(value < CONSOLE_MIN_TAB_WIDTH) return false;
+		if(value > CONSOLE_MAX_TAB_WIDTH) return false;
+		handle->creationParameters.tabSize = value;
+	case CONSOLE_TAB_MODE:
+		switch(value)
+		{
+		case CONSOLE_TAB_MOVE:
+		case CONSOLE_TAB_WRITE:
+			handle->creationParameters.tabMode = value;
+			break;
+		default:
+			return false;
+		}
+		break;
+	default:
+		return false;
     }
+
+	return true;
 }
 
 int  CALLBACK ConLibGetControlParameter(ConLibHandle handle, int parameterId)
@@ -178,19 +200,27 @@ int  CALLBACK ConLibGetControlParameter(ConLibHandle handle, int parameterId)
     case CONSOLE_CURRENT_ATTRIBUTE:
         return handle->currentAttribute.all;
     case CONSOLE_DEFAULT_ATTRIBUTE:
-        return handle->defaultAttribute.all;
+        return handle->creationParameters.defaultAttribute;
     case CONSOLE_SCROLL_OFFSET_X:
         return handle->scrollOffsetX;
     case CONSOLE_SCROLL_OFFSET_Y:
         return handle->scrollOffsetY;
     case CONSOLE_BUFFER_SIZE_X:
-        return handle->bufferWidth;
+        return handle->creationParameters.bufferWidth;
     case CONSOLE_BUFFER_SIZE_Y:
-        return handle->bufferHeight;
+        return handle->creationParameters.bufferHeight;
     case CONSOLE_WINDOW_SIZE_X:
-        return handle->windowWidth;
+        return handle->creationParameters.windowWidth;
     case CONSOLE_WINDOW_SIZE_Y:
-        return handle->windowHeight;
+        return handle->creationParameters.windowHeight;
+	case CONSOLE_TAB_WIDTH:
+		return handle->creationParameters.tabSize;
+	case CONSOLE_TAB_MODE:
+		return handle->creationParameters.tabMode;
+	case CONSOLE_FONT_WIDTH:
+		return handle->characterWidth;
+	case CONSOLE_FONT_HEIGHT:
+		return handle->characterHeight;
     }
     return -1;
 }

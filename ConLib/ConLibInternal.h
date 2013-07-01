@@ -17,6 +17,10 @@
 #ifndef _CONLIBINTERNAL_H_
 #define _CONLIBINTERNAL_H_
 
+#define CONLIB_INTERNAL_DEFINES
+
+#include "ConLib.h"
+
 #ifdef __cplusplus 
 extern "C" {
 #endif
@@ -44,25 +48,20 @@ typedef union charAttribute_t {
 	unsigned int all;
 } charAttribute;
 
-typedef struct conLibPrivateData 
+typedef struct conLibPrivateData_t
 {
-	int bufferWidth;
-	int bufferHeight;
+	ConLibCreationParameters creationParameters;
 
-	int* characterBuffer;
-	int* attributeBuffer;
+	unsigned int* characterBuffer;
+	unsigned int* attributeBuffer;
 
-	int** characterRows;
-	int** attributeRows;
-
-	int windowWidth;
-	int windowHeight;
+	unsigned int** characterRows;
+	unsigned int** attributeRows;
 
 	int cursorX;
 	int cursorY;
 
 	charAttribute currentAttribute;
-	charAttribute defaultAttribute;
 
 	int characterWidth;
 	int characterHeight;
@@ -86,9 +85,6 @@ typedef struct conLibPrivateData
 
 	int mouseLIsPressed;
 
-	int tabSize;
-	bool tabClearsBuffer;
-
 	pConLibNotificationCallback notificationCallback;
 
 	HFONT fontNormal;
@@ -108,8 +104,6 @@ typedef struct conLibPrivateData
 
 #define CONSOLE_DATA_ANSI 0
 #define CONSOLE_DATA_UNICODE 1
-
-#define CONLIB_INTERNAL_DEFINES
 
 #define CLMSG_NOOP (WM_USER+0)
 #define CLMSG_CLEAR (WM_USER+1)
@@ -139,7 +133,5 @@ void __inline swap(int* a, int* b)
 #ifdef __cplusplus 
 }
 #endif
-
-#include "ConLib.h"
 
 #endif // _CONLIBINTERNAL_H_

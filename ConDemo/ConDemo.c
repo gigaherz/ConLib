@@ -39,10 +39,15 @@ int main()
 {
     int i;
     ConLibHandle handle;
+	ConLibCreationParameters parameters = {80, 320, 80, 10};
 
     printf("Initializing ConLib...\n");
+	
+	parameters.defaultAttribute = CONSOLE_MAKE_ATTRIBUTE(0,24,24,24,0,0,0);
+	parameters.preferredCharacterHeight = 15;
+	wcscpy(parameters.fontFamily, L"Consolas");
 
-    handle = ConLibCreateConsole(80, 320, 80, 10, CONSOLE_MAKE_ATTRIBUTE(0,16,16,16,0,0,0));
+    handle = ConLibCreateConsole(&parameters);
     if (handle == NULL)
     {
         printf("Error creating ConLib console!\n");
@@ -60,6 +65,8 @@ int main()
         ConLibSetControlParameter(handle, CONSOLE_CURRENT_ATTRIBUTE, CONSOLE_MAKE_ATTRIBUTE(i&1,i,31-i,0,31-i,0,i));
         ConLibPrintf(handle, "\r\nHello console!Hello console!Hello console!Hello console!Hello console!!!");
     }
+
+	ConLibSetControlParameter(handle, CONSOLE_CURRENT_ATTRIBUTE, ConLibGetControlParameter(handle, CONSOLE_DEFAULT_ATTRIBUTE));
 
     ConLibWPrintf(handle, L"\r\nUnicode crap: \r\n暑\r\nい\r\n日\r\n 汉\r\n语\r\n/\r\n漢\r\n語\r\n");
     ConLibWPrintf(handle, L"\r\nUnicode crap (2): |暑い日汉语漢語|\r\n");

@@ -51,20 +51,20 @@ static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* t
 static void clScrollBufferDown(ConLibHandle handle)
 {
     int y, x;
-    int* firstCRow = handle->characterRows[0];
-    int* firstARow = handle->attributeRows[0];
+    unsigned int* firstCRow = handle->characterRows[0];
+    unsigned int* firstARow = handle->attributeRows[0];
 
-    for (y=1;y<handle->bufferHeight;y++)
+    for (y=1;y<handle->creationParameters.bufferHeight;y++)
     {
         handle->characterRows[y-1] = handle->characterRows[y];
         handle->attributeRows[y-1] = handle->attributeRows[y];
     }
-    handle->characterRows[handle->bufferHeight-1] = firstCRow;
-    handle->attributeRows[handle->bufferHeight-1] = firstARow;
-    for (x=0;x<handle->bufferWidth;x++)
+    handle->characterRows[handle->creationParameters.bufferHeight-1] = firstCRow;
+    handle->attributeRows[handle->creationParameters.bufferHeight-1] = firstARow;
+    for (x=0;x<handle->creationParameters.bufferWidth;x++)
     {
         firstCRow[x]=0x20; // space
-        firstARow[x]=handle->defaultAttribute.all;
+        firstARow[x]=handle->creationParameters.defaultAttribute;
     }
 }
 
@@ -73,12 +73,12 @@ static void clMoveDown(ConLibHandle handle)
     int YScrolled;
 
     handle->cursorY++;
-    if (handle->cursorY>=handle->bufferHeight)
+    if (handle->cursorY>=handle->creationParameters.bufferHeight)
     {
         handle->cursorY--;
         clScrollBufferDown(handle);
 
-        handle->scrollOffsetY = handle->bufferHeight-handle->windowHeight;
+        handle->scrollOffsetY = handle->creationParameters.bufferHeight-handle->creationParameters.windowHeight;
         SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
 
         ScrollWindowEx(handle->windowHandle,0,-handle->characterHeight,NULL,NULL,NULL,NULL,SW_INVALIDATE);
@@ -90,7 +90,7 @@ static void clMoveDown(ConLibHandle handle)
     {
         int scrollDifference = YScrolled;
 
-        if ((-scrollDifference)>=handle->windowHeight)
+        if ((-scrollDifference)>=handle->creationParameters.windowHeight)
             InvalidateRect(handle->windowHandle,NULL,FALSE);
         else
             ScrollWindowEx(handle->windowHandle,0,handle->characterHeight*scrollDifference,NULL,NULL,NULL,NULL,SW_INVALIDATE);
@@ -100,16 +100,16 @@ static void clMoveDown(ConLibHandle handle)
         clUpdateScrollBars(handle);
     }
 
-    if (YScrolled >= handle->windowHeight)
+    if (YScrolled >= handle->creationParameters.windowHeight)
     {
-        int scrollDifference = YScrolled - handle->windowHeight + 1;
+        int scrollDifference = YScrolled - handle->creationParameters.windowHeight + 1;
 
-        if (scrollDifference>=handle->windowHeight)
+        if (scrollDifference>=handle->creationParameters.windowHeight)
             InvalidateRect(handle->windowHandle,NULL,FALSE);
         else
             ScrollWindowEx(handle->windowHandle,0,-handle->characterHeight*scrollDifference,NULL,NULL,NULL,NULL,SW_INVALIDATE);
 
-        handle->scrollOffsetY = handle->cursorY - handle->windowHeight + 1;
+        handle->scrollOffsetY = handle->cursorY - handle->creationParameters.windowHeight + 1;
         //SetScrollPos(handle->windowHandle,SB_VERT,handle->scrollOffsetY,TRUE);
         clUpdateScrollBars(handle);
     }
@@ -121,7 +121,7 @@ static void clMoveDown(ConLibHandle handle)
 static void clMoveNext(ConLibHandle handle)
 {
     handle->cursorX++;
-    if (handle->cursorX>=handle->bufferWidth)
+    if (handle->cursorX>=handle->creationParameters.bufferWidth)
     {
         handle->cursorX=0;
         clMoveDown(handle);
@@ -130,8 +130,8 @@ static void clMoveNext(ConLibHandle handle)
 
 static void clPutCharInBuffer(ConLibHandle handle, wchar_t chr, bool isContinuation)
 {
-    int* cRow = handle->characterRows[handle->cursorY];
-    int* aRow = handle->attributeRows[handle->cursorY];
+    unsigned int* cRow = handle->characterRows[handle->cursorY];
+    unsigned int* aRow = handle->attributeRows[handle->cursorY];
 
     RECT r =
     {
@@ -166,16 +166,16 @@ static void clPutChar(ConLibHandle handle, wchar_t chr)
             handle->cursorX=0;
             break;
         case 9:
-            if (handle->tabClearsBuffer)
+            if (handle->creationParameters.tabMode == CONSOLE_TAB_WRITE)
             {
                 clPutCharInBuffer(handle, chr, false);
-                while ( (handle->cursorX % handle->tabSize)!= 0)
+                while ( (handle->cursorX % handle->creationParameters.tabSize)!= 0)
                     clPutCharInBuffer(handle, chr, true);
             }
             else
             {
                 clMoveNext(handle);
-                while ( (handle->cursorX % handle->tabSize)!= 0)
+                while ( (handle->cursorX % handle->creationParameters.tabSize)!= 0)
                     clMoveNext(handle);
             }
         }
@@ -218,17 +218,17 @@ void clHandleWindowResize(ConLibHandle handle, int* width, int* height)
     if (sw > CONSOLE_MAX_WINDOW_WIDTH)	sw = CONSOLE_MAX_WINDOW_WIDTH;
     if (sh > CONSOLE_MAX_WINDOW_HEIGHT)	sh = CONSOLE_MAX_WINDOW_HEIGHT;
 
-    if (sw > handle->bufferWidth)	sw = handle->bufferWidth;
-    if (sh > handle->bufferHeight)	sh = handle->bufferHeight;
+    if (sw > handle->creationParameters.bufferWidth)	sw = handle->creationParameters.bufferWidth;
+    if (sh > handle->creationParameters.bufferHeight)	sh = handle->creationParameters.bufferHeight;
 
-    if (*width == -1)		sw = handle->windowWidth;
-    if (*height == -1)	sh = handle->windowHeight;
+    if (*width == -1)		sw = handle->creationParameters.windowWidth;
+    if (*height == -1)	sh = handle->creationParameters.windowHeight;
 
     *width = sw * handle->characterWidth;
     *height = sh * handle->characterHeight;
 
-    handle->windowWidth = sw;
-    handle->windowHeight = sh;
+    handle->creationParameters.windowWidth = sw;
+    handle->creationParameters.windowHeight = sh;
 
     if (handle->notificationCallback)
         handle->notificationCallback(CONSOLE_NOTIFY_SIZE_CHANGED, sw, sh);
@@ -250,11 +250,11 @@ static void clRepaintArea(ConLibHandle handle, int sx, int sy, int ex, int ey)
 static void clClearRect(ConLibHandle handle, int x1, int x2, int y1, int y2)
 {
     int y,x;
-    int attr = handle->defaultAttribute.all;
+    unsigned int attr = handle->creationParameters.defaultAttribute;
     for (y=y1;y<y2;y++)
     {
-        int* crow = handle->characterRows[y];
-        int* arow = handle->attributeRows[y];
+        unsigned int* crow = handle->characterRows[y];
+        unsigned int* arow = handle->attributeRows[y];
         for (x=x1;x<x2;x++)
         {
             crow[x]=0x20; // space
@@ -273,11 +273,11 @@ void clClearArea(ConLibHandle handle, int mode)
     {
     case 0: // buffer
         firstLine = 0;
-        lastLine = handle->bufferHeight;
+        lastLine = handle->creationParameters.bufferHeight;
         break;
     case 1: // visible
         firstLine = handle->scrollOffsetY;
-        lastLine = firstLine + handle->windowHeight;
+        lastLine = firstLine + handle->creationParameters.windowHeight;
         break;
     case 2: // current line
         firstLine = handle->cursorY;
@@ -285,7 +285,7 @@ void clClearArea(ConLibHandle handle, int mode)
         break;
     }
 
-    clClearRect(handle, 0, handle->bufferWidth, firstLine, lastLine);
+    clClearRect(handle, 0, handle->creationParameters.bufferWidth, firstLine, lastLine);
 }
 
 void clPaintText(ConLibHandle handle, HWND hwnd)
@@ -313,10 +313,10 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
         t = paint.rcPaint.top/handle->characterHeight;
         b = (paint.rcPaint.bottom+handle->characterHeight-1)/handle->characterHeight;
 
-        if (r > handle->windowWidth)
-            r=handle->windowWidth;
-        if (b > handle->windowHeight)
-            b=handle->windowHeight;
+        if (r > handle->creationParameters.windowWidth)
+            r=handle->creationParameters.windowWidth;
+        if (b > handle->creationParameters.windowHeight)
+            b=handle->creationParameters.windowHeight;
 
         lat.all = 0;
 
@@ -324,7 +324,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
         fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
 
         selMode   = handle->selectionMode;
-        bufWidth  = handle->bufferWidth;
+        bufWidth  = handle->creationParameters.bufferWidth;
 
         // for sel mode 1
         selStartI = 0;
@@ -368,13 +368,13 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
         SetTextColor(hdc, fColor);
         SetBkColor(hdc, bColor);
 
-        temp = (wchar_t*)malloc((handle->windowWidth+1)*sizeof(wchar_t));
+        temp = (wchar_t*)malloc((handle->creationParameters.windowWidth+1)*sizeof(wchar_t));
         for (y=t;y<b;y++)
         {
             int ay = y+handle->scrollOffsetY;
 
-            int* cRow = handle->characterRows[ay];
-            int* aRow = handle->attributeRows[ay];
+            unsigned int* cRow = handle->characterRows[ay];
+            unsigned int* aRow = handle->attributeRows[ay];
             int nchars=0;
             int lastx=l;
 
@@ -403,7 +403,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
                 if (ay == selEndY)
                 {
                     int st = selEndX+1;
-                    while (st < handle->bufferWidth && clIsContinuation(handle, st, selEndY))
+                    while (st < handle->creationParameters.bufferWidth && clIsContinuation(handle, st, selEndY))
                     {
                         se++;
                         st++;
@@ -420,7 +420,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
                     ss--;
                 }
 
-                while ((se+1) < handle->bufferWidth && clIsContinuation(handle, se+1, ay))
+                while ((se+1) < handle->creationParameters.bufferWidth && clIsContinuation(handle, se+1, ay))
                 {
                     se++;
                 }

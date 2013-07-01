@@ -28,28 +28,62 @@ extern "C" {
 #define EXPORTED(ret) ret __declspec(dllexport) __stdcall
 #else
 #define EXPORTED(ret) ret __declspec(dllimport) __stdcall
-typedef struct conLibPrivateData { int dummy; }* ConLibHandle;
 #endif
+
+typedef struct conLibPrivateData_t* ConLibHandle;
 
 typedef void* pvoid;
 
 #define inline __inline
+
+typedef struct conLibCreationParameters_t
+{
+	int bufferWidth;
+	int bufferHeight;
+
+	int windowWidth;
+	int windowHeight;
+
+	unsigned int defaultAttribute;
+
+	int preferredCharacterWidth;
+	int preferredCharacterHeight;
+
+	int tabSize;
+	int tabMode;
+
+	wchar_t fontFamily[256];
+
+} ConLibCreationParameters;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 // Defines
 
 // Limits: these are artificial limits only, they can be modified,
-//         but performance and stability are not guaranteed if they are too big
+//         but performance and stability are not guaranteed if they are outside
+//         of the sensible range.
 #define CONSOLE_MIN_BUFFER_WIDTH	16
 #define CONSOLE_MIN_BUFFER_HEIGHT	1
 #define CONSOLE_MAX_BUFFER_WIDTH	2048
 #define CONSOLE_MAX_BUFFER_HEIGHT	65536
 
+#define CONSOLE_MIN_TAB_WIDTH		1
+#define CONSOLE_MAX_TAB_WIDTH		31
+
 #define CONSOLE_MIN_WINDOW_WIDTH	CONSOLE_MIN_BUFFER_WIDTH
 #define CONSOLE_MIN_WINDOW_HEIGHT	CONSOLE_MIN_BUFFER_HEIGHT
 #define CONSOLE_MAX_WINDOW_WIDTH	CONSOLE_MAX_BUFFER_WIDTH
 #define CONSOLE_MAX_WINDOW_HEIGHT	2048
+
+#define CONSOLE_MIN_FONT_WIDTH		4
+#define CONSOLE_MAX_FONT_WIDTH		255
+
+#define CONSOLE_MIN_FONT_HEIGHT		5
+#define CONSOLE_MAX_FONT_HEIGHT		255
+
+#define CONSOLE_TAB_MOVE 1
+#define CONSOLE_TAB_WRITE 2
 
 // Control parameters
 #define CONSOLE_PARAMETER(p_class,p_id) ((p_class<<16)|p_id)
@@ -70,12 +104,19 @@ typedef void* pvoid;
 #define CONSOLE_BUFFER_SIZE_X		CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0002)
 #define CONSOLE_BUFFER_SIZE_Y		CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0003)
 
+#define CONSOLE_TAB_WIDTH			CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0004)
+#define CONSOLE_TAB_MODE			CONSOLE_PARAMETER(CONSOLE_BUFFER_CLASS,0x0005)
+
 #define CONSOLE_SCROLL_OFFSET_X		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0000)
 #define CONSOLE_SCROLL_OFFSET_Y		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0001)
 
 // TODO: make writable
 #define CONSOLE_WINDOW_SIZE_X		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0002)
 #define CONSOLE_WINDOW_SIZE_Y		CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0003)
+
+// TODO: make writable
+#define CONSOLE_FONT_WIDTH			CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0004)
+#define CONSOLE_FONT_HEIGHT			CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0005)
 
 // Macros
 #define CONSOLE_MAKE_ATTRIBUTE(bold,fr,fg,fb,br,bg,bb) (((bold)<<31)|((fr)<<26)|((fg)<<21)|((fb)<<16)|((br)<<10)|((bg)<<5)|((bb)<<0))
@@ -88,12 +129,12 @@ typedef void* pvoid;
 ///////////////////////////////////////////////////////////////////////////////
 // Functions
 
-EXPORTED(ConLibHandle) ConLibCreateConsole(int bufferWidth, int bufferHeight, int windowWidth, int windowHeight, int defaultAttribute);
+EXPORTED(ConLibHandle) ConLibCreateConsole(ConLibCreationParameters* parameters);
 EXPORTED(void) ConLibDestroyConsole(ConLibHandle handle);
 
 EXPORTED(void) ConLibSetWindowTitle(ConLibHandle handle, const wchar_t* windowTitle);
 
-EXPORTED(void) ConLibSetControlParameter(ConLibHandle handle, int parameterId, int value);
+EXPORTED(bool) ConLibSetControlParameter(ConLibHandle handle, int parameterId, int value);
 EXPORTED(int)  ConLibGetControlParameter(ConLibHandle handle, int parameterId);
 
 EXPORTED(void) ConLibSetNotificationCallback(ConLibHandle handle, pConLibNotificationCallback callback);
