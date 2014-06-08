@@ -921,10 +921,11 @@ DWORD clThreadProc(ConLibHandle handle)
                 closing = true;
 
             TranslateMessage(&msg);
-            DispatchMessage(&msg);
 
-            if (msg.message==0) // why am I getting a WM_NULL message?
-                break;
+            if (msg.message == WM_NULL)
+                continue;
+
+            DispatchMessage(&msg);
 
             if ((msg.message == WM_DESTROY)|| closing)
             {
