@@ -16,6 +16,10 @@
 //
 // ConLib.cpp : Defines the exported functions for the DLL application.
 //
+#pragma warning(push)
+#pragma warning(disable:4820)
+#pragma warning(disable:4255)
+#pragma warning(disable:4668)
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "targetver.h"
@@ -24,13 +28,13 @@
 #include <tchar.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "ConLibInternal.h"
 #include <windowsx.h>
 
-//#include <string>
-//#include <set>
+#pragma warning(pop)
 
+#include "ConLibInternal.h"
 #include "UnicodeTools.h"
+
 
 extern MSG __declspec(thread) messageToPost;
 
@@ -40,7 +44,7 @@ static bool clIsContinuation(ConLibHandle handle, int x, int y)
 
     attr.all = handle->attributeRows[y][x];
 
-    return attr.isContinuation;
+    return attr.bits.isContinuation;
 }
 
 static void clRepaintText(ConLibHandle handle, HDC hdc, int x, int y, wchar_t* text, int nchars)
@@ -130,20 +134,20 @@ static void clMoveNext(ConLibHandle handle)
 
 static void clPutCharInBuffer(ConLibHandle handle, wchar_t chr, bool isContinuation)
 {
+    RECT r;
+    charAttribute attr;
+
     unsigned int* cRow = handle->characterRows[handle->cursorY];
     unsigned int* aRow = handle->attributeRows[handle->cursorY];
 
-    RECT r =
-    {
-        handle->cursorX * handle->characterWidth,
-        (handle->cursorY-handle->scrollOffsetY)*handle->characterHeight,
-        (handle->cursorX+1) * handle->characterWidth,
-        (handle->cursorY+1-handle->scrollOffsetY)*handle->characterHeight
-    };
+    r.left = handle->cursorX * handle->characterWidth;
+    r.top = (handle->cursorY - handle->scrollOffsetY)*handle->characterHeight;
+    r.right = r.left + handle->characterWidth;
+    r.bottom = r.top + handle->characterHeight;
 
-    charAttribute attr = handle->currentAttribute;
+    attr = handle->currentAttribute;
 
-    attr.isContinuation = isContinuation;
+    attr.bits.isContinuation = isContinuation;
 
     cRow[handle->cursorX] = chr;
     aRow[handle->cursorX] = attr.all;
@@ -320,8 +324,8 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 
         lat.all = 0;
 
-        bColor = RGB((lat.bgColorR*255)/31,(lat.bgColorG*255)/31,(lat.bgColorB*255)/31);
-        fColor = RGB((lat.fgColorR*255)/31,(lat.fgColorG*255)/31,(lat.fgColorB*255)/31);
+        bColor = RGB((lat.bits.bgColorR * 255) / 31, (lat.bits.bgColorG * 255) / 31, (lat.bits.bgColorB * 255) / 31);
+        fColor = RGB((lat.bits.fgColorR * 255) / 31, (lat.bits.fgColorG * 255) / 31, (lat.bits.fgColorB * 255) / 31);
 
         selMode   = handle->selectionMode;
         bufWidth  = handle->creationParameters.bufferWidth;
@@ -450,8 +454,8 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
                     break;
                 }
 
-                if ((at.fg != lat.fg) ||
-                        (at.fg != lat.fg) ||
+                if ((at.pieces.fg != lat.pieces.fg) ||
+                        (at.pieces.fg != lat.pieces.fg) ||
 #if ENABLE_BOLD_SUPPORT
                         (at.bold != lat.bold) ||
 #endif
@@ -467,7 +471,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
 
                     if (isSelected)
                     {
-                        int t = lat.bgColorB + lat.bgColorG + lat.bgColorR;
+                        int t = lat.bits.bgColorB + lat.bits.bgColorG + lat.bits.bgColorR;
 
                         if (t > 48)
                         {
@@ -482,8 +486,8 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
                     }
                     else
                     {
-                        bColor = RGB((at.bgColorR*255)/31,(at.bgColorG*255)/31,(at.bgColorB*255)/31);
-                        fColor = RGB((at.fgColorR*255)/31,(at.fgColorG*255)/31,(at.fgColorB*255)/31);
+                        bColor = RGB((at.bits.bgColorR*255)/31,(at.bits.bgColorG*255)/31,(at.bits.bgColorB*255)/31);
+                        fColor = RGB((at.bits.fgColorR*255)/31,(at.bits.fgColorG*255)/31,(at.bits.fgColorB*255)/31);
                     }
 
 #if ENABLE_BOLD_SUPPORT
@@ -495,7 +499,7 @@ void clPaintText(ConLibHandle handle, HWND hwnd)
                     SetBkColor(hdc, bColor);
                 }
 
-                if (!at.isContinuation)
+                if (!at.bits.isContinuation)
                     temp[nchars++] = (wchar_t)cRow[ax];
 
                 lat=at;

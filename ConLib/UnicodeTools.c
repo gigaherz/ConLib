@@ -16,11 +16,23 @@
 //
 // UnicodeTools.cpp : Tools to work with unicode characters
 //
+#pragma warning(push)
+#pragma warning(disable:4820)
+#pragma warning(disable:4255)
+#pragma warning(disable:4668)
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "targetver.h"
 
 #include <windows.h>
+#include <tchar.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <windowsx.h>
-#include "UnicodeTools.h"
+
+#pragma warning(pop)
+
+#include "ConLibInternal.h"
 
 #define RANGE(a,b) ((character >= a) && (character <= b))
 #define SINGLE(a) (character == a)

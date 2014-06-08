@@ -28,6 +28,8 @@ extern "C" {
 #include "cbool.h"
 #include "ConLibCallbacks.h"
 
+#define ENABLE_BOLD_SUPPORT 0
+
 typedef union charAttribute_t {
 	struct {
 		unsigned int bgColorB : 5;
@@ -38,13 +40,13 @@ typedef union charAttribute_t {
 		unsigned int fgColorG : 5;
 		unsigned int fgColorR : 5;
 		unsigned int bold : 1;
-	};
+    } bits;
 	struct {
 		unsigned int bg : 15;
 		unsigned int : 1;
 		unsigned int fg : 15;
 		unsigned int : 1;
-	};
+    } pieces;
 	unsigned int all;
 } charAttribute;
 

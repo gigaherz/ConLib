@@ -16,6 +16,10 @@
 //
 // API.cpp : Defines the exported functions for the DLL.
 //
+#pragma warning(push)
+#pragma warning(disable:4820)
+#pragma warning(disable:4255)
+#pragma warning(disable:4668)
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "targetver.h"
@@ -24,8 +28,11 @@
 #include <tchar.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include "ConLibInternal.h"
 #include <windowsx.h>
+
+#pragma warning(pop)
+
+#include "ConLibInternal.h"
 
 ConLibHandle CALLBACK ConLibCreateConsole(ConLibCreationParameters *params)
 {

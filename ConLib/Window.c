@@ -16,6 +16,10 @@
 //
 // ConLib.cpp : Defines the exported functions for the DLL application.
 //
+#pragma warning(push)
+#pragma warning(disable:4820)
+#pragma warning(disable:4255)
+#pragma warning(disable:4668)
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "targetver.h"
@@ -25,6 +29,9 @@
 #include <tchar.h>
 #include <stdarg.h>
 #include <stdio.h>
+
+#pragma warning(pop)
+
 #include "ConLibInternal.h"
 #include "UnicodeTools.h"
 
@@ -392,7 +399,7 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
             for (x=handle->selectionStartX;x<handle->creationParameters.bufferWidth;x++)
             {
                 attr.all = (handle->attributeRows[handle->selectionStartY][x]);
-                if (!attr.isContinuation)
+                if (!attr.bits.isContinuation)
                     copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[handle->selectionStartY][x]);
             }
             if (handle->selectionStartY < handle->selectionEndY)
@@ -428,7 +435,7 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
                 for (x=0;x<handle->creationParameters.bufferWidth;x++)
                 {
                     attr.all = (handle->attributeRows[y][x]);
-                    if (!attr.isContinuation)
+                    if (!attr.bits.isContinuation)
                         copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
                 }
                 copiedText[copiedTextLength++] = L'\r';
@@ -444,7 +451,7 @@ static void clOnKeyUp(ConLibHandle handle, HWND hwnd, WPARAM wParam)
                 for (x=handle->selectionStartX;x<=handle->selectionEndX;x++)
                 {
                     attr.all = (handle->attributeRows[y][x]);
-                    if (!attr.isContinuation)
+                    if (!attr.bits.isContinuation)
                         copiedText[copiedTextLength++] = (wchar_t)(handle->characterRows[y][x]);
                 }
                 copiedText[copiedTextLength++] = L'\r';
@@ -927,7 +934,7 @@ DWORD clThreadProc(ConLibHandle handle)
         else
         {
             DWORD ret = MsgWaitForMultipleObjectsEx(ARRAYSIZE(handle->handles), handle->handles, INFINITE, QS_ALLINPUT, 0);
-            if (ret >= WAIT_OBJECT_0 && ret < (WAIT_OBJECT_0+ARRAYSIZE(handle->handles)))
+            if (ret < (WAIT_OBJECT_0+ARRAYSIZE(handle->handles)))
             {
                 //int which = ret - WAIT_OBJECT_0;
             }
