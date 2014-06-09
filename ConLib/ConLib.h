@@ -38,21 +38,21 @@ typedef void* pvoid;
 
 typedef struct conLibCreationParameters_t
 {
-	int bufferWidth;
-	int bufferHeight;
+    int bufferWidth;
+    int bufferHeight;
 
-	int windowWidth;
-	int windowHeight;
+    int windowWidth;
+    int windowHeight;
 
-	unsigned int defaultAttribute;
+    unsigned int defaultAttribute;
 
-	int preferredCharacterWidth;
-	int preferredCharacterHeight;
+    int preferredCharacterWidth;
+    int preferredCharacterHeight;
 
-	int tabSize;
-	int tabMode;
+    int tabSize;
+    int tabMode;
 
-	wchar_t fontFamily[256];
+    wchar_t fontFamily[256];
 
 } ConLibCreationParameters;
 
@@ -117,6 +117,8 @@ typedef struct conLibCreationParameters_t
 // TODO: make writable
 #define CONSOLE_FONT_WIDTH			CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0004)
 #define CONSOLE_FONT_HEIGHT			CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0005)
+
+#define CONSOLE_SYSTEM_IDENTIFIER	CONSOLE_PARAMETER(CONSOLE_WINDOW_CLASS,0x0006)
 
 // Macros
 #define CONSOLE_MAKE_ATTRIBUTE(bold,fr,fg,fb,br,bg,bb) (((bold)<<31)|((fr)<<26)|((fg)<<21)|((fb)<<16)|((br)<<10)|((bg)<<5)|((bb)<<0))

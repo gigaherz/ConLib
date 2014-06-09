@@ -28,81 +28,90 @@ extern "C" {
 #include "cbool.h"
 #include "ConLibCallbacks.h"
 
+// WARNING: Tends to cause font alignment issues
+//  (bold width does not match normal width on most fonts)
 #define ENABLE_BOLD_SUPPORT 0
 
+// WARNING: Probably does not work.
+#define USE_APC_CALLBACKS 0
+
 typedef union charAttribute_t {
-	struct {
-		unsigned int bgColorB : 5;
-		unsigned int bgColorG : 5;
-		unsigned int bgColorR : 5;
-		unsigned int isContinuation : 1;
-		unsigned int fgColorB : 5;
-		unsigned int fgColorG : 5;
-		unsigned int fgColorR : 5;
-		unsigned int bold : 1;
+    struct {
+        unsigned int bgColorB : 5;
+        unsigned int bgColorG : 5;
+        unsigned int bgColorR : 5;
+        unsigned int isContinuation : 1;
+        unsigned int fgColorB : 5;
+        unsigned int fgColorG : 5;
+        unsigned int fgColorR : 5;
+        unsigned int bold : 1;
     } bits;
-	struct {
-		unsigned int bg : 15;
-		unsigned int : 1;
-		unsigned int fg : 15;
-		unsigned int : 1;
+    struct {
+        unsigned int bg : 15;
+        unsigned int : 1;
+        unsigned int fg : 15;
+        unsigned int : 1;
     } pieces;
-	unsigned int all;
+    unsigned int all;
 } charAttribute;
 
 typedef struct conLibPrivateData_t
 {
-	ConLibCreationParameters creationParameters;
+    ConLibCreationParameters creationParameters;
 
-	unsigned int* characterBuffer;
-	unsigned int* attributeBuffer;
+    unsigned int* characterBuffer;
+    unsigned int* attributeBuffer;
 
-	unsigned int** characterRows;
-	unsigned int** attributeRows;
+    unsigned int** characterRows;
+    unsigned int** attributeRows;
 
-	int cursorX;
-	int cursorY;
+    int cursorX;
+    int cursorY;
 
-	charAttribute currentAttribute;
+    charAttribute currentAttribute;
 
-	int characterWidth;
-	int characterHeight;
+    int characterWidth;
+    int characterHeight;
 
-	int scrollOffsetY;
-	int scrollOffsetX;
+    int scrollOffsetY;
+    int scrollOffsetX;
 
-	UINT lastWindowState;
+    UINT lastWindowState;
 
-	bool scrollBarVisibleX;
-	bool scrollBarVisibleY;
-	
-	int selectionMode;		// 0 = not selecting anything, 1= linear, 2= block, 3= rectangle
-	int selectionStartX;	// Column
-	int selectionStartY;	// Row
-	int selectionEndX;		// Column
-	int selectionEndY;		// Row
-	
-	int shiftIsPressed;
-	int ctrlIsPressed;
+    bool scrollBarVisibleX;
+    bool scrollBarVisibleY;
 
-	int mouseLIsPressed;
+    int selectionMode;		// 0 = not selecting anything, 1= linear, 2= block, 3= rectangle
+    int selectionStartX;	// Column
+    int selectionStartY;	// Row
+    int selectionEndX;		// Column
+    int selectionEndY;		// Row
 
-	pConLibNotificationCallback notificationCallback;
+    int shiftIsPressed;
+    int ctrlIsPressed;
 
-	HFONT fontNormal;
-	HFONT fontBold;
+    int mouseLIsPressed;
 
-	HWND windowHandle;
-	TCHAR* sWndName;
+    pConLibNotificationCallback notificationCallback;
 
-	HANDLE handles[2];
+#if USE_APC_CALLBACKS
+    HANDLE callerThread;
+#endif
 
-	HANDLE hThread;
-	DWORD idThread;
+    HFONT fontNormal;
+    HFONT fontBold;
 
-	bool windowCreated;
+    HWND windowHandle;
+    TCHAR* sWndName;
 
-}* ConLibHandle;
+    HANDLE handles[2];
+
+    HANDLE hThread;
+    DWORD idThread;
+
+    bool windowCreated;
+
+}*ConLibHandle;
 
 #define CONSOLE_DATA_ANSI 0
 #define CONSOLE_DATA_UNICODE 1
@@ -125,11 +134,13 @@ extern void clPaintText(ConLibHandle handle, HWND hwnd);
 
 extern int clIsFullWidthStart(ConLibHandle handle, int x, int y);
 
+extern int clSendCallback(ConLibHandle handle, int code, intptr_t wParam, intptr_t lParam);
+
 void __inline swap(int* a, int* b)
 {
-	int t = *a;
-	*a = *b;
-	*b = t;
+    int t = *a;
+    *a = *b;
+    *b = t;
 }
 
 #ifdef __cplusplus 

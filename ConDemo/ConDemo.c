@@ -23,13 +23,20 @@
 
 bool not_closed=true;
 
-int __stdcall notification_callback(int code, intptr_t wParam, uintptr_t lParam)
+int __stdcall notification_callback(ConLibHandle handle, int code, intptr_t wParam, uintptr_t lParam)
 {
+    UNREFERENCED_PARAMETER(wParam);
+    UNREFERENCED_PARAMETER(lParam);
+
     // This is called from the console's update thread so it's NOT safe to do much stuff here!
     // The ideal usage would be to set an event or similar, which is handled from the main thread.
     // For the purposes of this sample, this is more than enough (it is also possible to check clPrint* for a <=0 return value as a failure code)
     if (code == CONSOLE_NOTIFY_CLOSE)
     {
+        if (MessageBox((HWND) ConLibGetControlParameter(handle, CONSOLE_SYSTEM_IDENTIFIER),
+            L"Are you sure you want to close the console?", L"Question", MB_YESNO) == IDNO)
+            return 0;
+
         not_closed = false;
     }
     return 1;
@@ -45,7 +52,7 @@ int main()
 	
 	parameters.defaultAttribute = CONSOLE_MAKE_ATTRIBUTE(0,24,24,24,0,0,0);
 	parameters.preferredCharacterHeight = 15;
-	wcscpy(parameters.fontFamily, L"Consolas");
+	wcscpy(parameters.fontFamily, L"MS Mincho");
 
     handle = ConLibCreateConsole(&parameters);
     if (handle == NULL)
